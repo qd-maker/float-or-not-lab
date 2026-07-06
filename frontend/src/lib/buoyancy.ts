@@ -1,0 +1,84 @@
+export type BuoyancyState = "float" | "suspend" | "sink";
+
+export interface BuoyancyResult {
+  state: BuoyancyState;
+  state_text: string;
+  object_weight_n: number;
+  buoyancy_n: number;
+  difference_n: number;
+  explanation: string;
+  student_tip: string;
+}
+
+export interface PresetExperiment {
+  name: string;
+  objectWeight: number;
+  displacedWaterWeight: number;
+  description: string;
+}
+
+export const presets: PresetExperiment[] = [
+  {
+    name: "小木块",
+    objectWeight: 3,
+    displacedWaterWeight: 5,
+    description: "木块排开的水能给它足够的托力，所以容易浮起来。",
+  },
+  {
+    name: "小石头",
+    objectWeight: 9,
+    displacedWaterWeight: 4,
+    description: "石头比较容易沉，是因为它得到的浮力不够托住它。",
+  },
+  {
+    name: "小船",
+    objectWeight: 20,
+    displacedWaterWeight: 28,
+    description: "船能排开很多水，所以可以获得很大的浮力。",
+  },
+  {
+    name: "潜水艇悬停",
+    objectWeight: 18,
+    displacedWaterWeight: 18,
+    description: "当浮力和重力差不多平衡时，潜水艇可以悬浮在水中。",
+  },
+];
+
+export function localCalculate(objectWeight: number, displacedWaterWeight: number): BuoyancyResult {
+  const difference = Number((displacedWaterWeight - objectWeight).toFixed(3));
+  const tolerance = Math.max(0.05, Math.max(Math.abs(objectWeight), Math.abs(displacedWaterWeight), 1) * 0.02);
+
+  if (Math.abs(difference) <= tolerance) {
+    return {
+      state: "suspend",
+      state_text: "悬浮",
+      object_weight_n: objectWeight,
+      buoyancy_n: displacedWaterWeight,
+      difference_n: difference,
+      explanation: "排开水的重量和物体重量差不多，浮力和重力平衡，所以物体会悬浮在水中。",
+      student_tip: "看箭头：向上和向下的箭头差不多长，说明两个力差不多平衡。",
+    };
+  }
+
+  if (displacedWaterWeight > objectWeight) {
+    return {
+      state: "float",
+      state_text: "上浮",
+      object_weight_n: objectWeight,
+      buoyancy_n: displacedWaterWeight,
+      difference_n: difference,
+      explanation: "排开水的重量比物体重量大，浮力能托住物体，所以物体会上浮。",
+      student_tip: "看箭头：向上的浮力箭头更长，说明水给物体的托力更大。",
+    };
+  }
+
+  return {
+    state: "sink",
+    state_text: "下沉",
+    object_weight_n: objectWeight,
+    buoyancy_n: displacedWaterWeight,
+    difference_n: difference,
+    explanation: "排开水的重量比物体重量小，浮力不够托住物体，所以物体会下沉。",
+    student_tip: "看箭头：向下的重力箭头更长，说明物体更容易往下运动。",
+  };
+}

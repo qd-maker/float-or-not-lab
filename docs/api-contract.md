@@ -99,6 +99,153 @@ POST /api/buoyancy/calculate
 }
 ```
 
+## 3. 公式计算接口，Day2 计划
+
+```http
+POST /api/buoyancy/formula/calculate
+```
+
+该接口用于支持「公式实验室」。Day1 暂未实现，Day2 开发。
+
+### 3.1 阿基米德原理模式
+
+#### Request Body
+
+```json
+{
+  "mode": "archimedes",
+  "liquid_density_kg_m3": 1000,
+  "displaced_volume_m3": 0.003,
+  "g_n_kg": 10
+}
+```
+
+#### Response 200
+
+```json
+{
+  "mode": "archimedes",
+  "formula": "F浮 = ρ液 g V排",
+  "result_n": 30,
+  "steps": [
+    "F浮 = ρ液 g V排",
+    "F浮 = 1000 × 10 × 0.003",
+    "F浮 = 30 N"
+  ],
+  "student_tip": "排开水的体积越大，液体给物体的浮力通常越大。"
+}
+```
+
+### 3.2 称重法模式
+
+#### Request Body
+
+```json
+{
+  "mode": "weighing",
+  "object_weight_n": 12,
+  "spring_scale_reading_n": 7
+}
+```
+
+#### Response 200
+
+```json
+{
+  "mode": "weighing",
+  "formula": "F浮 = G物 - F示",
+  "result_n": 5,
+  "steps": [
+    "F浮 = G物 - F示",
+    "F浮 = 12 - 7",
+    "F浮 = 5 N"
+  ],
+  "student_tip": "物体放入水中后，测力计少显示的那部分力，就是水给它的浮力。"
+}
+```
+
+### 3.3 漂浮平衡模式
+
+#### Request Body
+
+```json
+{
+  "mode": "floating_balance",
+  "object_weight_n": 8
+}
+```
+
+#### Response 200
+
+```json
+{
+  "mode": "floating_balance",
+  "formula": "漂浮时 F浮 = G物",
+  "result_n": 8,
+  "steps": [
+    "物体漂浮时处于平衡状态",
+    "F浮 = G物",
+    "F浮 = 8 N"
+  ],
+  "student_tip": "漂浮不代表没有重力，而是浮力刚好托住了物体。"
+}
+```
+
+## 4. 题目训练接口，Day3 计划
+
+```http
+GET /api/practice/questions
+```
+
+返回初中浮力题库。
+
+### Response 200
+
+```json
+{
+  "questions": [
+    {
+      "id": "q-weighing-001",
+      "type": "fill_blank",
+      "topic": "称重法求浮力",
+      "stem": "一个物体在空气中重 12 N，浸没在水中时弹簧测力计示数为 7 N，物体受到的浮力是多少？",
+      "answer": "5",
+      "unit": "N"
+    }
+  ]
+}
+```
+
+```http
+POST /api/practice/submit
+```
+
+提交答案并返回解析。
+
+### Request Body
+
+```json
+{
+  "question_id": "q-weighing-001",
+  "student_answer": "5"
+}
+```
+
+### Response 200
+
+```json
+{
+  "correct": true,
+  "correct_answer": "5 N",
+  "analysis_steps": [
+    "这道题使用称重法。",
+    "F浮 = G物 - F示。",
+    "F浮 = 12 - 7 = 5 N。"
+  ],
+  "mistake_tip": null
+}
+```
+
 ## Error Responses
 
 ### 422 Validation Error

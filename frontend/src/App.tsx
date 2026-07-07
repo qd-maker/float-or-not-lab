@@ -11,10 +11,25 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
-const formulaModeLabels: Record<FormulaMode, { title: string; subtitle: string }> = {
-  archimedes: { title: "阿基米德原理", subtitle: "F浮 = ρ液 g V排" },
-  weighing: { title: "称重法", subtitle: "F浮 = G物 - F示" },
-  floating_balance: { title: "漂浮平衡", subtitle: "F浮 = G物" },
+const formulaModeLabels: Record<FormulaMode, { title: string; subtitle: string; when: string }> = {
+  archimedes: { title: "阿基米德原理", subtitle: "F浮 = ρ液 g V排", when: "已知液体密度和排开体积" },
+  weighing: { title: "称重法", subtitle: "F浮 = G物 - F示", when: "已知测力计前后示数" },
+  floating_balance: { title: "漂浮平衡", subtitle: "F浮 = G物", when: "题目说物体漂浮" },
+};
+
+const formulaExamples: Record<FormulaMode, Array<{ label: string; values: Partial<FormulaValues> }>> = {
+  archimedes: [
+    { label: "水中排开 0.003 m³", values: { liquidDensity: 1000, displacedVolume: 0.003, g: 10 } },
+    { label: "盐水中排开 0.002 m³", values: { liquidDensity: 1100, displacedVolume: 0.002, g: 10 } },
+  ],
+  weighing: [
+    { label: "12 N 物体，水中示数 7 N", values: { weighingObjectWeight: 12, springScaleReading: 7 } },
+    { label: "8 N 物体，水中示数 5 N", values: { weighingObjectWeight: 8, springScaleReading: 5 } },
+  ],
+  floating_balance: [
+    { label: "5 N 木块漂浮", values: { floatingObjectWeight: 5 } },
+    { label: "8000 N 小船漂浮", values: { floatingObjectWeight: 8000 } },
+  ],
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -63,6 +78,14 @@ function App() {
 
   function updateFormulaValue(key: keyof FormulaValues, value: number) {
     setFormulaValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function applyFormulaExample(values: Partial<FormulaValues>) {
+    const nextValues = { ...formulaValues, ...values };
+    setFormulaValues(nextValues);
+    setFormulaError("");
+    setFormulaResult(localCalculateFormula(formulaMode, nextValues));
+    setFormulaSource("一键例题预览");
   }
 
   function buildFormulaPayload() {
@@ -258,14 +281,19 @@ function App() {
       <section className="formula-lab" aria-labelledby="formula-lab-title">
         <div className="formula-lab-header">
           <div>
-            <p className="eyebrow">Day2 · 公式实验室</p>
             <h2 id="formula-lab-title">从看懂浮力，到会算浮力</h2>
             <p>
-              选择一种初中常见题型，输入数据后查看公式、代入过程和结果。这里先练基础公式，不扩展到复杂综合题。
+              先选题型，再填数据，最后看分步解析。每一步都按初中物理题的写法来，不直接跳答案。
             </p>
           </div>
           <span className="source-pill">{formulaSource}</span>
         </div>
+
+        <ol className="learning-steps" aria-label="公式实验室操作步骤">
+          <li><strong>1</strong><span>选公式</span></li>
+          <li><strong>2</strong><span>填数据</span></li>
+          <li><strong>3</strong><span>看解析</span></li>
+        </ol>
 
         <div className="formula-mode-group" role="group" aria-label="选择浮力计算公式">
           {(Object.keys(formulaModeLabels) as FormulaMode[]).map((mode) => (
@@ -283,6 +311,7 @@ function App() {
             >
               <span>{formulaModeLabels[mode].title}</span>
               <small>{formulaModeLabels[mode].subtitle}</small>
+              <em>{formulaModeLabels[mode].when}</em>
             </button>
           ))}
         </div>
@@ -292,6 +321,17 @@ function App() {
             <div className="panel-heading">
               <span>公式输入</span>
               <strong>{formulaModeLabels[formulaMode].subtitle}</strong>
+            </div>
+
+            <div className="example-box" aria-label="一键例题">
+              <span>不知道填什么？先试一个例题：</span>
+              <div>
+                {formulaExamples[formulaMode].map((example) => (
+                  <button key={example.label} type="button" onClick={() => applyFormulaExample(example.values)}>
+                    {example.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {formulaMode === "archimedes" && (
@@ -386,7 +426,7 @@ function App() {
           </form>
 
           <section className="formula-result" aria-live="polite" aria-busy={formulaLoading}>
-            <p className="eyebrow">分步解析</p>
+            <div className="result-kicker">分步解析</div>
             <h3>{formulaResult.formula}</h3>
             <ol className="step-list">
               {formulaResult.steps.map((step) => (

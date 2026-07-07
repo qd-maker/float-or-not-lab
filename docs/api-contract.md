@@ -99,13 +99,13 @@ POST /api/buoyancy/calculate
 }
 ```
 
-## 3. 公式计算接口，Day2 计划
+## 3. 公式计算接口，Day2 已实现
 
 ```http
 POST /api/buoyancy/formula/calculate
 ```
 
-该接口用于支持「公式实验室」。Day1 暂未实现，Day2 开发。
+该接口用于支持「公式实验室」，返回公式、代入步骤、结果和学生提示。
 
 ### 3.1 阿基米德原理模式
 

@@ -45,15 +45,15 @@ POST /api/buoyancy/calculate
 | 字段 | 类型 | 必填 | 规则 | 含义 |
 | --- | --- | --- | --- | --- |
 | object_weight_n | number | 是 | `>= 0` 且 `<= 10000` | 物体重量，单位 N |
-| displaced_water_weight_n | number | 是 | `>= 0` 且 `<= 10000` | 物体排开水的重量，单位 N |
+| displaced_water_weight_n | number | 是 | `>= 0` 且 `<= 10000` | 物体完全浸没时排开水的重量，单位 N |
 
 ### 判断规则
 
 | 条件 | state | state_text | 说明 |
 | --- | --- | --- | --- |
-| 排开水重量 > 物体重量 | float | 上浮 | 浮力更大，能托住物体 |
-| 排开水重量 ≈ 物体重量 | suspend | 悬浮 | 浮力和重力差不多平衡 |
-| 排开水重量 < 物体重量 | sink | 下沉 | 浮力不够，托不住物体 |
+| 完全浸没时排开水重量 > 物体重量 | float | 上浮 | 浮力更大，能托住物体 |
+| 完全浸没时排开水重量 ≈ 物体重量 | suspend | 悬浮 | 浮力和重力差不多平衡 |
+| 完全浸没时排开水重量 < 物体重量 | sink | 下沉 | 浮力不够，托不住物体 |
 
 说明：实际输入小数时可能存在误差，因此后端会使用一个很小的容差判断「差不多相等」。
 
@@ -66,7 +66,7 @@ POST /api/buoyancy/calculate
   "object_weight_n": 8,
   "buoyancy_n": 10,
   "difference_n": 2,
-  "explanation": "排开水的重量比物体重量大，浮力能托住物体，所以物体会上浮。",
+  "explanation": "完全浸没时排开水的重量比物体重量大，浮力能托住物体，所以物体会上浮。",
   "student_tip": "看箭头：向上的浮力箭头更长，说明水给物体的托力更大。"
 }
 ```
@@ -80,7 +80,7 @@ POST /api/buoyancy/calculate
   "object_weight_n": 8,
   "buoyancy_n": 8,
   "difference_n": 0,
-  "explanation": "排开水的重量和物体重量差不多，浮力和重力平衡，所以物体会悬浮在水中。",
+  "explanation": "完全浸没时排开水的重量和物体重量差不多，浮力和重力平衡，所以物体会悬浮在水中。",
   "student_tip": "看箭头：向上和向下的箭头差不多长，说明两个力差不多平衡。"
 }
 ```
@@ -94,7 +94,7 @@ POST /api/buoyancy/calculate
   "object_weight_n": 10,
   "buoyancy_n": 6,
   "difference_n": -4,
-  "explanation": "排开水的重量比物体重量小，浮力不够托住物体，所以物体会下沉。",
+  "explanation": "完全浸没时排开水的重量比物体重量小，浮力不够托住物体，所以物体会下沉。",
   "student_tip": "看箭头：向下的重力箭头更长，说明物体更容易往下运动。"
 }
 ```
@@ -191,13 +191,15 @@ POST /api/buoyancy/formula/calculate
 }
 ```
 
-## 4. 题目训练接口，Day3 计划
+## 4. 题目训练接口，Day3 已实现
+
+### 4.1 获取题库
 
 ```http
 GET /api/practice/questions
 ```
 
-返回初中浮力题库。
+返回内置初中浮力题库。当前题库为代码内置，不依赖数据库，保证 demo 可以快速启动。
 
 ### Response 200
 
@@ -209,18 +211,41 @@ GET /api/practice/questions
       "type": "fill_blank",
       "topic": "称重法求浮力",
       "stem": "一个物体在空气中重 12 N，浸没在水中时弹簧测力计示数为 7 N，物体受到的浮力是多少？",
+      "options": [],
       "answer": "5",
-      "unit": "N"
+      "unit": "N",
+      "analysis_steps": [
+        "这道题使用称重法。",
+        "F浮 = G物 - F示。",
+        "F浮 = 12 - 7 = 5 N。"
+      ],
+      "mistake_tip": "不要把水中测力计示数 7 N 当成浮力，浮力是前后两次数值的差。"
     }
   ]
 }
 ```
 
+题目字段说明：
+
+| 字段 | 类型 | 含义 |
+| --- | --- | --- |
+| id | string | 题目唯一标识 |
+| type | string | `single_choice` 或 `fill_blank` |
+| topic | string | 题型标签，例如判断浮沉、称重法求浮力 |
+| stem | string | 题干 |
+| options | array | 选择题选项，填空题为空数组 |
+| answer | string | 标准答案原始值 |
+| unit | string/null | 答案单位 |
+| analysis_steps | string[] | 分步解析 |
+| mistake_tip | string | 动态错因提示；未命中规则时回退题库内置提示 |
+
+### 4.2 提交答案
+
 ```http
 POST /api/practice/submit
 ```
 
-提交答案并返回解析。
+提交学生答案，返回正误、标准答案、分步解析和错因提示。`mistake_tip` 会优先根据学生错误答案动态判断，未命中规则时回退题库内置提示。
 
 ### Request Body
 
@@ -231,22 +256,153 @@ POST /api/practice/submit
 }
 ```
 
-### Response 200
+### Response 200：答对
 
 ```json
 {
+  "question_id": "q-weighing-001",
   "correct": true,
   "correct_answer": "5 N",
+  "student_answer": "5",
   "analysis_steps": [
     "这道题使用称重法。",
     "F浮 = G物 - F示。",
     "F浮 = 12 - 7 = 5 N。"
   ],
-  "mistake_tip": null
+  "mistake_tip": ""
 }
 ```
 
+### Response 200：答错
+
+```json
+{
+  "question_id": "q-weighing-001",
+  "correct": false,
+  "correct_answer": "5 N",
+  "student_answer": "7",
+  "analysis_steps": [
+    "这道题使用称重法。",
+    "F浮 = G物 - F示。",
+    "F浮 = 12 - 7 = 5 N。"
+  ],
+  "mistake_tip": "不要把水中测力计示数 7 N 当成浮力，浮力是前后两次数值的差。"
+}
+```
+
+## 5. AI 错因解释接口，Day3 已实现
+
+```http
+POST /api/ai/explain-mistake
+```
+
+该接口只做「答错后换一种说法解释」，不做开放聊天。
+
+行为规则：
+
+- `ENABLE_AI_TUTOR=true` 且存在 `OPENAI_API_KEY`：调用 OpenAI Responses API，并要求结构化 JSON 输出。
+- 没有 API Key 或关闭 AI：返回本地模板解释，不影响 demo。
+- 默认模型：`gpt-4o`，可以用 `OPENAI_MODEL` 覆盖。
+
+### Request Body
+
+```json
+{
+  "question": "一个物体在空气中重 12 N，浸没在水中时弹簧测力计示数为 7 N，物体受到的浮力是多少？",
+  "standard_answer": "5 N",
+  "student_answer": "7 N",
+  "knowledge_scope": "只允许解释浮力、阿基米德原理、称重法、漂浮平衡和初中基础浮沉判断"
+}
+```
+
+### Response 200
+
+```json
+{
+  "short_explanation": "你把水中测力计示数当成了浮力，其实浮力是前后两次数值的差。",
+  "hint": "称重法先找 G物 和 F示，再用 F浮 = G物 - F示。",
+  "next_step": "回到题干，把空气中的重力和水中的示数圈出来，再重新算一遍。"
+}
+```
+
+
+## 6. AI 自由提问接口，Day3 已实现
+
+```http
+POST /api/ai/ask
+```
+
+该接口用于「AI 小老师」自由提问，但 Prompt 被约束为只回答物理题目、物理概念、物理计算和物理实验现象相关内容。非物理问题会被要求拒答。
+
+行为规则：
+
+- 使用项目根目录 `.env` 中的 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_API_KEY`。
+- 默认模型：`gpt-4o`。
+- 没有 API Key 或中转站不可用时，返回本地降级提示。
+- 可以带上当前题目、标准答案和学生答案作为上下文。
+
+### Request Body
+
+```json
+{
+  "message": "为什么漂浮时浮力等于重力？",
+  "current_question": "一块木块漂浮在水面上，木块重 5 N，它受到的浮力是多少？",
+  "standard_answer": "5 N",
+  "student_answer": "8 N"
+}
+```
+
+### Response 200
+
+```json
+{
+  "answer": "这题先判断状态：木块是漂浮。漂浮时物体处于受力平衡，向上的浮力等于向下的重力，所以 F浮 = G物 = 5 N。",
+  "scope": "浮力 / 漂浮平衡",
+  "next_prompt": "如果物体下沉，浮力和重力又是什么关系？"
+}
+```
+
+### 6.1 AI 自由提问流式接口，Day3 优化已实现
+
+```http
+POST /api/ai/ask/stream
+```
+
+该接口使用 Server-Sent Events（SSE）返回流式文本，前端「AI 小老师」默认调用这个接口。请求体与 `/api/ai/ask` 相同。
+
+行为规则：
+
+- 使用项目根目录 `.env` 中的 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_API_KEY`。
+- 默认模型：`gpt-4o`。
+- 有可用 AI key 时，后端调用 OpenAI-compatible Chat Completions `stream=true`。
+- 没有 API Key、关闭 AI 或中转站不可用时，仍按 SSE 格式返回本地降级解释。
+- Prompt 继续约束为只回答物理题目、物理概念、物理计算和物理实验现象相关内容。
+
+### SSE Event：chunk
+
+```text
+event: chunk
+data: {"delta":"这题先判断状态：木块是漂浮。"}
+```
+
+### SSE Event：done
+
+```text
+event: done
+data: {"scope":"AI 小老师","next_prompt":"还能问：这道题还有什么易错点？"}
+```
+
 ## Error Responses
+
+### 404 Not Found
+
+当提交不存在的题目 ID 时返回。
+
+```json
+{
+  "detail": "Question not found"
+}
+```
 
 ### 422 Validation Error
 

@@ -78,8 +78,8 @@ export function localCalculate(objectWeight: number, displacedWaterWeight: numbe
       object_weight_n: objectWeight,
       buoyancy_n: displacedWaterWeight,
       difference_n: difference,
-      explanation: "排开水的重量和物体重量差不多，浮力和重力平衡，所以物体会悬浮在水中。",
-      student_tip: "看箭头：向上和向下的箭头差不多长，说明两个力差不多平衡。",
+      explanation: "完全浸没时排开水的重量和物体重量差不多，浮力和重力平衡，所以物体会悬浮在水中。",
+      student_tip: "这里比较的是刚完全浸没时的最大浮力。看箭头：向上和向下的箭头差不多长，说明两个力差不多平衡。",
     };
   }
 
@@ -90,8 +90,8 @@ export function localCalculate(objectWeight: number, displacedWaterWeight: numbe
       object_weight_n: objectWeight,
       buoyancy_n: displacedWaterWeight,
       difference_n: difference,
-      explanation: "排开水的重量比物体重量大，浮力能托住物体，所以物体会上浮。",
-      student_tip: "看箭头：向上的浮力箭头更长，说明水给物体的托力更大。",
+      explanation: "完全浸没时排开水的重量比物体重量大，最大浮力能托住物体，所以物体会上浮。",
+      student_tip: "这里比较的是刚完全浸没时的最大浮力。物体最终漂浮后，浮力会重新等于物体重力。",
     };
   }
 
@@ -101,8 +101,8 @@ export function localCalculate(objectWeight: number, displacedWaterWeight: numbe
     object_weight_n: objectWeight,
     buoyancy_n: displacedWaterWeight,
     difference_n: difference,
-    explanation: "排开水的重量比物体重量小，浮力不够托住物体，所以物体会下沉。",
-    student_tip: "看箭头：向下的重力箭头更长，说明物体更容易往下运动。",
+    explanation: "完全浸没时排开水的重量比物体重量小，最大浮力也不够托住物体，所以物体会下沉。",
+    student_tip: "这里比较的是刚完全浸没时的最大浮力。看箭头：向下的重力箭头更长，说明物体更容易往下运动。",
   };
 }
 

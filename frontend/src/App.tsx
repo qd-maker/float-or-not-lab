@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BuoyancyResult,
   FormulaMode,
@@ -8,14 +8,24 @@ import {
   localCalculateFormula,
   presets,
 } from "./lib/buoyancy";
+import {
+  AiAskResult,
+  fallbackPracticeQuestions,
+  localAiAskResult,
+  localSubmitPractice,
+  PracticeQuestion,
+  PracticeSubmitResult,
+} from "./lib/practice";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const formulaModeLabels: Record<FormulaMode, { title: string; subtitle: string; when: string }> = {
-  archimedes: { title: "阿基米德原理", subtitle: "F浮 = ρ液 g V排", when: "已知液体密度和排开体积" },
-  weighing: { title: "称重法", subtitle: "F浮 = G物 - F示", when: "已知测力计前后示数" },
-  floating_balance: { title: "漂浮平衡", subtitle: "F浮 = G物", when: "题目说物体漂浮" },
+  archimedes: { title: "阿基米德原理", subtitle: "F浮 = ρ液 g V排", when: "看到液体密度、排开体积时用" },
+  weighing: { title: "称重法", subtitle: "F浮 = G物 - F示", when: "看到空气中重力、水中测力计示数时用" },
+  floating_balance: { title: "漂浮平衡", subtitle: "F浮 = G物", when: "题目明确说物体漂浮时用" },
 };
+
+const defaultAiQuickPrompts = ["这题先找哪些已知量？", "为什么要用 m³ 作单位？", "如果换成盐水，浮力会怎样？"];
 
 const formulaExamples: Record<FormulaMode, Array<{ label: string; values: Partial<FormulaValues> }>> = {
   archimedes: [
@@ -31,6 +41,10 @@ const formulaExamples: Record<FormulaMode, Array<{ label: string; values: Partia
     { label: "8000 N 小船漂浮", values: { floatingObjectWeight: 8000 } },
   ],
 };
+
+function getQuestionNavLabel(question: PracticeQuestion, index: number) {
+  return `${question.topic} - ${String(index + 1).padStart(2, "0")}`;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -66,6 +80,20 @@ function App() {
   const [formulaLoading, setFormulaLoading] = useState(false);
   const [formulaError, setFormulaError] = useState("");
 
+  const [practiceQuestions, setPracticeQuestions] = useState<PracticeQuestion[]>(fallbackPracticeQuestions);
+  const [activePracticeTopic, setActivePracticeTopic] = useState(fallbackPracticeQuestions[0]?.topic ?? "");
+  const [selectedQuestionId, setSelectedQuestionId] = useState(fallbackPracticeQuestions[0]?.id ?? "");
+  const [practiceAnswer, setPracticeAnswer] = useState("");
+  const [practiceResult, setPracticeResult] = useState<PracticeSubmitResult | null>(null);
+  const [practiceSource, setPracticeSource] = useState("本地题库预览");
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [practiceError, setPracticeError] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiAskResult, setAiAskResult] = useState<AiAskResult | null>(null);
+  const [aiAskLoading, setAiAskLoading] = useState(false);
+  const [aiAskError, setAiAskError] = useState("");
+
   const forceScale = useMemo(() => {
     const maxForce = Math.max(objectWeight, displacedWaterWeight, 1);
     return {
@@ -74,7 +102,91 @@ function App() {
     };
   }, [objectWeight, displacedWaterWeight]);
 
+  const selectedQuestion = useMemo(
+    () => practiceQuestions.find((question) => question.id === selectedQuestionId) ?? practiceQuestions[0],
+    [practiceQuestions, selectedQuestionId]
+  );
+
+  const groupedPracticeQuestions = useMemo(() => {
+    const groups = new Map<string, PracticeQuestion[]>();
+    for (const question of practiceQuestions) {
+      const current = groups.get(question.topic) ?? [];
+      current.push(question);
+      groups.set(question.topic, current);
+    }
+    return Array.from(groups.entries());
+  }, [practiceQuestions]);
+
+  const visiblePracticeQuestions = useMemo(() => {
+    if (!activePracticeTopic) {
+      return practiceQuestions;
+    }
+    return practiceQuestions.filter((question) => question.topic === activePracticeTopic);
+  }, [activePracticeTopic, practiceQuestions]);
+
+  const aiQuickPrompts = useMemo(() => {
+    if (!selectedQuestion) {
+      return defaultAiQuickPrompts;
+    }
+
+    if (practiceResult && !practiceResult.correct) {
+      return [
+        `我答成了 ${practiceResult.student_answer}，为什么不对？`,
+        "请只提示我这道题的易错点",
+        "这题下一步应该先算什么？",
+      ];
+    }
+
+    if (practiceResult?.correct) {
+      return ["帮我总结这题的解题模板", "出一道相似的浮力题", "如果条件变一下，答案会怎么变？"];
+    }
+
+    return defaultAiQuickPrompts;
+  }, [practiceResult, selectedQuestion]);
+
+  const dynamicAiPrompts = useMemo(() => {
+    if (practiceResult && !practiceResult.correct) {
+      return [
+        `我选了${practiceResult.student_answer}，为什么不对？`,
+        "请提示我这道题的易错点",
+        "能换个生活中的例子解释吗？"
+      ];
+    }
+    return aiQuickPrompts;
+  }, [practiceResult, aiQuickPrompts]);
+
   const objectClassName = `lab-object lab-object--${result.state}`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPracticeQuestions() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/practice/questions`);
+        if (!response.ok) {
+          throw new Error("Practice API request failed");
+        }
+        const data = (await response.json()) as { questions: PracticeQuestion[] };
+        if (!data.questions?.length || cancelled) {
+          return;
+        }
+        setPracticeQuestions(data.questions);
+        setActivePracticeTopic(data.questions[0].topic);
+        setSelectedQuestionId(data.questions[0].id);
+        setPracticeSource("后端题库");
+      } catch {
+        if (!cancelled) {
+          setPracticeSource("后端未启动，已使用前端本地题库");
+        }
+      }
+    }
+
+    loadPracticeQuestions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateFormulaValue(key: keyof FormulaValues, value: number) {
     setFormulaValues((current) => ({ ...current, [key]: value }));
@@ -174,13 +286,204 @@ function App() {
     }
   }
 
+  function selectPracticeQuestion(questionId: string) {
+    const nextQuestion = practiceQuestions.find((question) => question.id === questionId);
+    if (nextQuestion) {
+      setActivePracticeTopic(nextQuestion.topic);
+    }
+    setSelectedQuestionId(questionId);
+    setPracticeAnswer("");
+    setPracticeResult(null);
+    setPracticeError("");
+    setAiQuestion("");
+    setAiAskResult(null);
+    setAiAskError("");
+  }
+
+  function selectPracticeTopic(topic: string) {
+    const firstQuestion = practiceQuestions.find((question) => question.topic === topic);
+    setActivePracticeTopic(topic);
+    if (firstQuestion) {
+      selectPracticeQuestion(firstQuestion.id);
+    }
+  }
+
+  function updatePracticeAnswer(nextAnswer: string) {
+    setPracticeAnswer(nextAnswer);
+    setPracticeError("");
+    if (practiceResult) {
+      setPracticeResult(null);
+      setAiAskResult(null);
+    }
+  }
+
+  function selectNextPracticeQuestion() {
+    if (!selectedQuestion || practiceQuestions.length === 0) {
+      return;
+    }
+
+    const visibleIndex = visiblePracticeQuestions.findIndex((question) => question.id === selectedQuestion.id);
+    if (visibleIndex >= 0 && visibleIndex < visiblePracticeQuestions.length - 1) {
+      selectPracticeQuestion(visiblePracticeQuestions[visibleIndex + 1].id);
+      return;
+    }
+
+    const currentIndex = practiceQuestions.findIndex((question) => question.id === selectedQuestion.id);
+    const nextQuestion = practiceQuestions[(currentIndex + 1) % practiceQuestions.length] ?? practiceQuestions[0];
+    selectPracticeQuestion(nextQuestion.id);
+  }
+
+  async function submitPracticeAnswer() {
+    if (!selectedQuestion) {
+      return;
+    }
+
+    const trimmedAnswer = practiceAnswer.trim();
+    setPracticeError("");
+    if (!trimmedAnswer) {
+      setPracticeError("先写下你的答案，再提交。选择题可以直接点选项。");
+      return;
+    }
+
+    setPracticeLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/practice/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question_id: selectedQuestion.id, student_answer: trimmedAnswer }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Practice submit request failed");
+      }
+
+      const data = (await response.json()) as PracticeSubmitResult;
+      setPracticeResult(data);
+      setPracticeSource("后端题库");
+    } catch {
+      setPracticeResult(localSubmitPractice(selectedQuestion, trimmedAnswer));
+      setPracticeSource("后端未启动，已使用前端本地判题");
+    } finally {
+      setPracticeLoading(false);
+    }
+  }
+
+  async function askPhysicsTutor(messageOverride?: string) {
+    if (!selectedQuestion) {
+      return;
+    }
+
+    const message = (messageOverride ?? aiQuestion).trim();
+    setAiAskError("");
+
+    if (!message) {
+      setAiAskError("先写下你想问 AI 小老师的物理问题。");
+      return;
+    }
+
+    setAiQuestion(message);
+    setAiAskLoading(true);
+    setAiAskResult({
+      answer: "",
+      scope: "AI 小老师",
+      next_prompt: "还能问：这道题还有什么易错点？",
+    });
+
+    function applySseEvent(rawEvent: string) {
+      const dataLines = rawEvent
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim());
+
+      if (dataLines.length === 0) {
+        return;
+      }
+
+      try {
+        const data = JSON.parse(dataLines.join("\n")) as Partial<AiAskResult> & { delta?: string };
+        if (typeof data.delta === "string") {
+          setAiAskResult((current) => ({
+            answer: `${current?.answer ?? ""}${data.delta}`,
+            scope: current?.scope ?? "AI 小老师",
+            next_prompt: current?.next_prompt ?? "还能问：这道题还有什么易错点？",
+          }));
+        }
+        if (data.scope || data.next_prompt) {
+          setAiAskResult((current) => ({
+            answer: current?.answer ?? "",
+            scope: data.scope ?? current?.scope ?? "AI 小老师",
+            next_prompt: data.next_prompt ?? current?.next_prompt ?? "还能问：这道题还有什么易错点？",
+          }));
+        }
+      } catch {
+        // 忽略单个格式异常的流片段，保留已经显示出来的内容。
+      }
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ai/ask/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          current_question: selectedQuestion.stem,
+          standard_answer: practiceResult?.correct_answer,
+          student_answer: practiceResult?.student_answer,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("AI ask request failed");
+      }
+
+      if (!response.body) {
+        throw new Error("Browser does not support streaming response");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop() ?? "";
+        events.forEach(applySseEvent);
+      }
+
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        applySseEvent(buffer);
+      }
+    } catch {
+      setAiAskResult(localAiAskResult());
+    } finally {
+      setAiAskLoading(false);
+    }
+  }
+
+  async function askAiTutor() {
+    if (!selectedQuestion || !practiceResult || practiceResult.correct) {
+      return;
+    }
+    setAiLoading(true);
+    const message = `我这道题答成了 ${practiceResult.student_answer}，标准答案是 ${practiceResult.correct_answer}。请结合题目给我讲清楚为什么错，以及下次怎么判断。`;
+    await askPhysicsTutor(message);
+    setAiLoading(false);
+  }
+
   return (
     <main className="page-shell">
       <section className="hero">
         <p className="eyebrow">初中物理 · 单一知识点实验</p>
         <h1>浮不浮实验室</h1>
         <p className="hero-copy">
-          先用水槽看懂浮力和重力的比较，再用初中公式算出浮力，最后为真实题目训练做准备。
+          先看物体完全浸没时最大浮力和重力的比较，再用初中公式算出浮力，最后用真实题目练到会用。
         </p>
       </section>
 
@@ -203,7 +506,7 @@ function App() {
           </label>
 
           <label className="field">
-            <span>排开水的重量</span>
+            <span>完全浸没时排开水的重量</span>
             <input
               type="number"
               min="0"
@@ -214,6 +517,7 @@ function App() {
           </label>
 
           <button className="primary-action" onClick={() => runExperiment()} disabled={isLoading}>
+            {isLoading && <span className="loading-dot" aria-hidden="true" />}
             {isLoading ? "实验中..." : "开始实验"}
           </button>
 
@@ -270,10 +574,11 @@ function App() {
           <p className="eyebrow">实验结论</p>
           <h2>{result.explanation}</h2>
           <p>{result.student_tip}</p>
+          <p className="concept-note">这里比较的是物体刚完全浸没时的最大浮力；如果物体最终漂浮，浮力会重新等于物体重力。</p>
           <div className="formula-strip">
             <span>浮力大小</span>
             <strong>≈</strong>
-            <span>物体排开水的重量</span>
+            <span>物体完全浸没时排开水的重量</span>
           </div>
         </section>
       </section>
@@ -421,6 +726,7 @@ function App() {
             )}
 
             <button className="primary-action" type="submit" disabled={formulaLoading}>
+              {formulaLoading && <span className="loading-dot" aria-hidden="true" />}
               {formulaLoading ? "计算中..." : "计算浮力"}
             </button>
           </form>
@@ -439,6 +745,243 @@ function App() {
             </div>
             <p>{formulaResult.student_tip}</p>
           </section>
+        </div>
+      </section>
+
+      <section className="practice-lab" aria-labelledby="practice-lab-title">
+        <div className="practice-lab-header">
+          <div>
+            <p className="eyebrow">真实题目训练</p>
+            <h2 id="practice-lab-title">把浮力题真正练会</h2>
+            <p>
+              选一道题，先自己作答，再看正误、标准答案、分步解析和错因提示。答错时可以让 AI 小老师换一种说法讲一遍。
+            </p>
+          </div>
+          <span className="source-pill">{practiceSource}</span>
+        </div>
+
+        <div className="practice-workspace">
+          <aside className="question-list" aria-label="题目列表">
+            <div className="question-list-title">
+              <span>题库</span>
+              <strong>{practiceQuestions.length} 题</strong>
+            </div>
+
+            <div className="topic-filter" role="tablist" aria-label="按题型筛选">
+              {groupedPracticeQuestions.map(([topic, questions]) => (
+                <button
+                  key={topic}
+                  type="button"
+                  role="tab"
+                  className={topic === activePracticeTopic ? "topic-filter-button is-active" : "topic-filter-button"}
+                  aria-selected={topic === activePracticeTopic}
+                  onClick={() => selectPracticeTopic(topic)}
+                >
+                  <span>{topic}</span>
+                  <strong>{questions.length}</strong>
+                </button>
+              ))}
+            </div>
+
+            <div className="question-group compact">
+              <h3>{activePracticeTopic || "全部题目"}</h3>
+              <ul>
+                {visiblePracticeQuestions.map((question, index) => (
+                  <li key={question.id}>
+                    <button
+                      type="button"
+                      className={question.id === selectedQuestion?.id ? "question-button is-active" : "question-button"}
+                      aria-pressed={question.id === selectedQuestion?.id}
+                      onClick={() => selectPracticeQuestion(question.id)}
+                    >
+                      <span>{question.type === "single_choice" ? "选择" : "填空"}</span>
+                      <strong>{getQuestionNavLabel(question, index)}</strong>
+                      <small>{question.stem}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+
+          {selectedQuestion && (
+            <div className="practice-study-grid">
+              <section className="practice-card" aria-labelledby="current-question-title">
+                <div className="practice-card-header">
+                  <span className="topic-pill">{selectedQuestion.topic}</span>
+                  <span>{selectedQuestion.type === "single_choice" ? "选择题" : "填空题"}</span>
+                </div>
+
+                <h3 id="current-question-title">{selectedQuestion.stem}</h3>
+
+                {selectedQuestion.type === "single_choice" ? (
+                  <div className="answer-options" role="group" aria-label="选择你的答案">
+                    {selectedQuestion.options.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={practiceAnswer === option.id ? "answer-option is-selected" : "answer-option"}
+                        aria-pressed={practiceAnswer === option.id}
+                        onClick={() => {
+                          updatePracticeAnswer(option.id);
+                        }}
+                      >
+                        <span>{option.id}</span>
+                        <strong>{option.text}</strong>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <label className="field practice-answer-field" htmlFor="practice-answer">
+                    <span>你的答案{selectedQuestion.unit ? `（单位：${selectedQuestion.unit}，可只填数字）` : ""}</span>
+                    <input
+                      id="practice-answer"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={selectedQuestion.unit ? `例如：${selectedQuestion.answer}` : "写下你的答案"}
+                      value={practiceAnswer}
+                      aria-describedby={practiceError ? "practice-error" : undefined}
+                      aria-invalid={Boolean(practiceError)}
+                      onChange={(event) => {
+                        updatePracticeAnswer(event.target.value);
+                      }}
+                    />
+                  </label>
+                )}
+
+                {practiceError && (
+                  <p id="practice-error" className="form-error" role="alert">
+                    {practiceError}
+                  </p>
+                )}
+
+                {practiceResult ? (
+                  <button className="primary-action submitted-action" type="button" disabled>
+                    已提交，先看下方解析
+                  </button>
+                ) : (
+                  <button className="primary-action" type="button" onClick={submitPracticeAnswer} disabled={practiceLoading}>
+                    {practiceLoading && <span className="loading-dot" aria-hidden="true" />}
+                    {practiceLoading ? "判题中..." : "提交答案"}
+                  </button>
+                )}
+
+                {practiceResult && (
+                  <section className="practice-result" aria-live="polite">
+                    <div className={practiceResult.correct ? "result-banner is-correct" : "result-banner is-wrong"}>
+                      <span>{practiceResult.correct ? "答对了" : "再想一步"}</span>
+                      <strong>{practiceResult.correct ? "浮力思路正确" : "这题暂时答错了"}</strong>
+                    </div>
+
+                    <div className="standard-answer">
+                      <span>标准答案</span>
+                      <strong>{practiceResult.correct_answer}</strong>
+                    </div>
+
+                    <div className="analysis-box">
+                      <h4>分步解析</h4>
+                      <ol className="step-list">
+                        {practiceResult.analysis_steps.map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    {!practiceResult.correct && (
+                      <div className="mistake-box">
+                        <h4>错因提示</h4>
+                        <p>{practiceResult.mistake_tip}</p>
+                        <button className="secondary-action" type="button" onClick={askAiTutor} disabled={aiLoading || aiAskLoading}>
+                          {(aiLoading || aiAskLoading) && <span className="loading-dot" aria-hidden="true" />}
+                          {aiLoading || aiAskLoading ? "AI 小老师思考中..." : "让 AI 针对我的错误讲一遍"}
+                        </button>
+                      </div>
+                    )}
+
+                    <button className="primary-action next-practice-action" type="button" onClick={selectNextPracticeQuestion}>
+                      看完解析，下一题
+                    </button>
+                  </section>
+                )}
+              </section>
+
+              <aside className="ai-tutor-panel" aria-labelledby="ai-free-ask-title">
+                <div className="ai-tutor-heading">
+                  <span className="topic-pill">AI 小老师</span>
+                  <h3 id="ai-free-ask-title">问一道物理题</h3>
+                  <p>可以追问当前题，也可以问其它物理题。系统提示已限制为只回答物理学习相关内容。</p>
+                </div>
+
+                <div className="quick-prompt-group" aria-label="AI 小老师快捷提问">
+                  {dynamicAiPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      className="quick-prompt"
+                      onClick={() => askPhysicsTutor(prompt)}
+                      disabled={aiAskLoading}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="field ai-question-field" htmlFor="ai-question-input">
+                  <span>你的问题</span>
+                  <div className="ai-input-shell">
+                    <textarea
+                      id="ai-question-input"
+                      rows={4}
+                      placeholder="输入你的疑问，按 Enter 发送..."
+                      value={aiQuestion}
+                      aria-describedby={aiAskError ? "ai-question-error" : undefined}
+                      aria-invalid={Boolean(aiAskError)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          askPhysicsTutor();
+                        }
+                      }}
+                      onChange={(event) => {
+                        setAiQuestion(event.target.value);
+                        setAiAskError("");
+                      }}
+                    />
+                    <button
+                      className="ai-send-button"
+                      type="button"
+                      aria-label="发送问题给 AI 小老师"
+                      onClick={() => askPhysicsTutor()}
+                      disabled={aiAskLoading}
+                    >
+                      {aiAskLoading ? <span className="loading-dot" aria-hidden="true" /> : "↗"}
+                    </button>
+                  </div>
+                </label>
+
+                {aiAskError && (
+                  <p id="ai-question-error" className="form-error" role="alert">
+                    {aiAskError}
+                  </p>
+                )}
+
+                {aiAskResult && (
+                  <section className="ai-answer-card" aria-live="polite" aria-busy={aiAskLoading}>
+                    <div>
+                      <span>知识范围</span>
+                      <strong>{aiAskResult.scope}</strong>
+                    </div>
+                    <p>{aiAskResult.answer || "AI 小老师正在组织语言..."}</p>
+                    {!aiAskLoading && aiAskResult.next_prompt && (
+                      <button className="text-action" type="button" onClick={() => setAiQuestion(aiAskResult.next_prompt)}>
+                        继续追问：{aiAskResult.next_prompt}
+                      </button>
+                    )}
+                  </section>
+                )}
+              </aside>
+            </div>
+          )}
         </div>
       </section>
     </main>

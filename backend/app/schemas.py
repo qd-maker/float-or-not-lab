@@ -28,7 +28,7 @@ class BuoyancyRequest(BaseModel):
         ...,
         ge=0,
         le=10000,
-        description="物体排开水的重量，单位 N。根据阿基米德原理，它近似等于浮力大小。",
+        description="物体完全浸没时排开水的重量，单位 N。根据阿基米德原理，它近似等于此时的最大浮力。",
         examples=[10],
     )
 
@@ -106,3 +106,73 @@ class FormulaCalculateResponse(BaseModel):
     result_n: float
     steps: list[str]
     student_tip: str
+
+
+
+class QuestionType(str, Enum):
+    SINGLE_CHOICE = "single_choice"
+    FILL_BLANK = "fill_blank"
+
+
+class QuestionOption(BaseModel):
+    id: str
+    text: str
+
+
+class PracticeQuestion(BaseModel):
+    id: str
+    type: QuestionType
+    topic: str
+    stem: str
+    options: list[QuestionOption] = Field(default_factory=list)
+    answer: str
+    unit: Optional[str] = None
+    analysis_steps: list[str]
+    mistake_tip: str
+
+
+class PracticeQuestionsResponse(BaseModel):
+    questions: list[PracticeQuestion]
+
+
+class PracticeSubmitRequest(BaseModel):
+    question_id: str = Field(..., min_length=1)
+    student_answer: str = Field(..., min_length=1, max_length=100)
+
+
+class PracticeSubmitResponse(BaseModel):
+    question_id: str
+    correct: bool
+    correct_answer: str
+    student_answer: str
+    analysis_steps: list[str]
+    mistake_tip: str
+
+
+class AiExplainMistakeRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    standard_answer: str = Field(..., min_length=1, max_length=200)
+    student_answer: str = Field(..., min_length=1, max_length=200)
+    knowledge_scope: str = Field(
+        default="只允许解释浮力、阿基米德原理、称重法、漂浮平衡和初中基础浮沉判断",
+        max_length=300,
+    )
+
+
+class AiExplainMistakeResponse(BaseModel):
+    short_explanation: str
+    hint: str
+    next_step: str
+
+
+class AiAskRequest(BaseModel):
+    message: str = Field(..., min_length=2, max_length=1000)
+    current_question: Optional[str] = Field(default=None, max_length=1000)
+    standard_answer: Optional[str] = Field(default=None, max_length=200)
+    student_answer: Optional[str] = Field(default=None, max_length=200)
+
+
+class AiAskResponse(BaseModel):
+    answer: str
+    scope: str
+    next_prompt: str

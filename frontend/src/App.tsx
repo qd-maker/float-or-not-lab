@@ -26,6 +26,19 @@ const formulaModeLabels: Record<FormulaMode, { title: string; subtitle: string; 
 };
 
 const defaultAiQuickPrompts = ["这题先找哪些已知量？", "为什么要用 m³ 作单位？", "如果换成盐水，浮力会怎样？"];
+const PRACTICE_STATS_STORAGE_KEY = "float-lab-practice-stats";
+
+interface PracticeStats {
+  answered: number;
+  correct: number;
+  wrongQuestionIds: string[];
+}
+
+const emptyPracticeStats: PracticeStats = {
+  answered: 0,
+  correct: 0,
+  wrongQuestionIds: [],
+};
 
 const formulaExamples: Record<FormulaMode, Array<{ label: string; values: Partial<FormulaValues> }>> = {
   archimedes: [
@@ -50,11 +63,35 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function loadPracticeStats(): PracticeStats {
+  try {
+    const raw = window.localStorage.getItem(PRACTICE_STATS_STORAGE_KEY);
+    if (!raw) {
+      return emptyPracticeStats;
+    }
+    const parsed = JSON.parse(raw) as PracticeStats;
+    return {
+      answered: Number.isFinite(parsed.answered) ? parsed.answered : 0,
+      correct: Number.isFinite(parsed.correct) ? parsed.correct : 0,
+      wrongQuestionIds: Array.isArray(parsed.wrongQuestionIds) ? parsed.wrongQuestionIds : [],
+    };
+  } catch {
+    return emptyPracticeStats;
+  }
+}
+
+function formatAccuracy(stats: PracticeStats) {
+  if (stats.answered === 0) {
+    return "还没开始";
+  }
+  return `${Math.round((stats.correct / stats.answered) * 100)}%`;
+}
+
 function App() {
   const [objectWeight, setObjectWeight] = useState(8);
   const [displacedWaterWeight, setDisplacedWaterWeight] = useState(10);
   const [result, setResult] = useState<BuoyancyResult>(() => localCalculate(8, 10));
-  const [source, setSource] = useState("本地初始实验");
+  const [source, setSource] = useState("准备好了");
   const [isLoading, setIsLoading] = useState(false);
 
   const [formulaMode, setFormulaMode] = useState<FormulaMode>("archimedes");
@@ -76,7 +113,7 @@ function App() {
       floatingObjectWeight: 8,
     })
   );
-  const [formulaSource, setFormulaSource] = useState("本地初始计算");
+  const [formulaSource, setFormulaSource] = useState("准备好了");
   const [formulaLoading, setFormulaLoading] = useState(false);
   const [formulaError, setFormulaError] = useState("");
 
@@ -85,9 +122,10 @@ function App() {
   const [selectedQuestionId, setSelectedQuestionId] = useState(fallbackPracticeQuestions[0]?.id ?? "");
   const [practiceAnswer, setPracticeAnswer] = useState("");
   const [practiceResult, setPracticeResult] = useState<PracticeSubmitResult | null>(null);
-  const [practiceSource, setPracticeSource] = useState("本地题库预览");
+  const [practiceSource, setPracticeSource] = useState("题库已准备好");
   const [practiceLoading, setPracticeLoading] = useState(false);
   const [practiceError, setPracticeError] = useState("");
+  const [practiceStats, setPracticeStats] = useState<PracticeStats>(() => loadPracticeStats());
   const [aiLoading, setAiLoading] = useState(false);
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiAskResult, setAiAskResult] = useState<AiAskResult | null>(null);
@@ -156,6 +194,7 @@ function App() {
   }, [practiceResult, aiQuickPrompts]);
 
   const objectClassName = `lab-object lab-object--${result.state}`;
+  const practiceAccuracy = formatAccuracy(practiceStats);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,10 +212,10 @@ function App() {
         setPracticeQuestions(data.questions);
         setActivePracticeTopic(data.questions[0].topic);
         setSelectedQuestionId(data.questions[0].id);
-        setPracticeSource("后端题库");
+        setPracticeSource("题库已准备好");
       } catch {
         if (!cancelled) {
-          setPracticeSource("后端未启动，已使用前端本地题库");
+          setPracticeSource("离线题库可用");
         }
       }
     }
@@ -197,7 +236,7 @@ function App() {
     setFormulaValues(nextValues);
     setFormulaError("");
     setFormulaResult(localCalculateFormula(formulaMode, nextValues));
-    setFormulaSource("一键例题预览");
+    setFormulaSource("例题已填好");
   }
 
   function buildFormulaPayload() {
@@ -245,10 +284,10 @@ function App() {
 
       const data = (await response.json()) as BuoyancyResult;
       setResult(data);
-      setSource("后端 API 计算");
+      setSource("判断完成");
     } catch {
       setResult(localCalculate(nextObjectWeight, nextDisplacedWaterWeight));
-      setSource("后端未启动，已使用前端本地计算");
+      setSource("判断完成");
     } finally {
       setIsLoading(false);
     }
@@ -277,10 +316,10 @@ function App() {
 
       const data = (await response.json()) as FormulaResult;
       setFormulaResult(data);
-      setFormulaSource("后端 API 计算");
+      setFormulaSource("计算完成");
     } catch {
       setFormulaResult(localCalculateFormula(formulaMode, formulaValues));
-      setFormulaSource("后端未启动，已使用前端本地计算");
+      setFormulaSource("计算完成");
     } finally {
       setFormulaLoading(false);
     }
@@ -333,6 +372,45 @@ function App() {
     selectPracticeQuestion(nextQuestion.id);
   }
 
+  function resetPracticeStats() {
+    setPracticeStats(emptyPracticeStats);
+    window.localStorage.removeItem(PRACTICE_STATS_STORAGE_KEY);
+  }
+
+  function recordPracticeResult(nextResult: PracticeSubmitResult) {
+    setPracticeStats((current) => {
+      const wrongQuestionIds = nextResult.correct
+        ? current.wrongQuestionIds
+        : Array.from(new Set([...current.wrongQuestionIds, nextResult.question_id]));
+      const nextStats = {
+        answered: current.answered + 1,
+        correct: current.correct + (nextResult.correct ? 1 : 0),
+        wrongQuestionIds,
+      };
+      window.localStorage.setItem(PRACTICE_STATS_STORAGE_KEY, JSON.stringify(nextStats));
+      return nextStats;
+    });
+  }
+
+  function selectedOptionText(question: PracticeQuestion | undefined, answer: string) {
+    if (!question || question.type !== "single_choice") {
+      return undefined;
+    }
+    const option = question.options.find((item) => item.id === answer);
+    return option ? `${option.id}. ${option.text}` : answer;
+  }
+
+  function correctAnswerText(question: PracticeQuestion | undefined) {
+    if (!question) {
+      return undefined;
+    }
+    if (question.type !== "single_choice") {
+      return question.unit ? `${question.answer} ${question.unit}` : question.answer;
+    }
+    const option = question.options.find((item) => item.id === question.answer);
+    return option ? `${option.id}. ${option.text}` : question.answer;
+  }
+
   async function submitPracticeAnswer() {
     if (!selectedQuestion) {
       return;
@@ -359,10 +437,13 @@ function App() {
 
       const data = (await response.json()) as PracticeSubmitResult;
       setPracticeResult(data);
-      setPracticeSource("后端题库");
+      setPracticeSource("已完成判题");
+      recordPracticeResult(data);
     } catch {
-      setPracticeResult(localSubmitPractice(selectedQuestion, trimmedAnswer));
-      setPracticeSource("后端未启动，已使用前端本地判题");
+      const localResult = localSubmitPractice(selectedQuestion, trimmedAnswer);
+      setPracticeResult(localResult);
+      setPracticeSource("已完成判题");
+      recordPracticeResult(localResult);
     } finally {
       setPracticeLoading(false);
     }
@@ -427,8 +508,14 @@ function App() {
         body: JSON.stringify({
           message,
           current_question: selectedQuestion.stem,
+          question_options: selectedQuestion.options,
           standard_answer: practiceResult?.correct_answer,
           student_answer: practiceResult?.student_answer,
+          correct_option: selectedQuestion.answer,
+          selected_option_text: selectedOptionText(selectedQuestion, practiceResult?.student_answer ?? practiceAnswer),
+          correct_answer_text: correctAnswerText(selectedQuestion),
+          analysis_steps: practiceResult?.analysis_steps ?? selectedQuestion.analysis_steps,
+          mistake_tip: practiceResult?.mistake_tip,
         }),
       });
 
@@ -611,7 +698,7 @@ function App() {
                 setFormulaMode(mode);
                 setFormulaError("");
                 setFormulaResult(localCalculateFormula(mode, formulaValues));
-                setFormulaSource("本地预览计算");
+                setFormulaSource("已切换题型");
               }}
             >
               <span>{formulaModeLabels[mode].title}</span>
@@ -662,15 +749,11 @@ function App() {
                   />
                 </label>
                 <label className="field">
-                  <span>g，N/kg</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    step="0.1"
-                    value={formulaValues.g}
-                    onChange={(event) => updateFormulaValue("g", Number(event.target.value))}
-                  />
+                  <span>g，N/kg（初中题通常取 10）</span>
+                  <select value={formulaValues.g} onChange={(event) => updateFormulaValue("g", Number(event.target.value))}>
+                    <option value={10}>10 N/kg（常用）</option>
+                    <option value={9.8}>9.8 N/kg（更精确）</option>
+                  </select>
                 </label>
               </div>
             )}
@@ -756,6 +839,16 @@ function App() {
             <p>
               选一道题，先自己作答，再看正误、标准答案、分步解析和错因提示。答错时可以让 AI 小老师换一种说法讲一遍。
             </p>
+            <div className="practice-stats" aria-label="练习统计">
+              <span>已练 {practiceStats.answered} 题</span>
+              <span>正确率 {practiceAccuracy}</span>
+              <span>错题 {practiceStats.wrongQuestionIds.length} 题</span>
+              {practiceStats.answered > 0 && (
+                <button type="button" onClick={resetPracticeStats}>
+                  清空记录
+                </button>
+              )}
+            </div>
           </div>
           <span className="source-pill">{practiceSource}</span>
         </div>

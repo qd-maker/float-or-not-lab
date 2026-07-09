@@ -66,6 +66,19 @@ def test_formula_archimedes():
     assert len(data["steps"]) == 3
 
 
+def test_formula_reject_non_standard_g():
+    response = client.post(
+        "/api/buoyancy/formula/calculate",
+        json={
+            "mode": "archimedes",
+            "liquid_density_kg_m3": 1000,
+            "displaced_volume_m3": 0.003,
+            "g_n_kg": 10.5,
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_formula_weighing():
     response = client.post(
         "/api/buoyancy/formula/calculate",

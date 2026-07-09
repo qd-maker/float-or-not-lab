@@ -87,6 +87,8 @@ AI 小老师用于补充讲解，不替代标准答案。
 
 Prompt 约束：只回答物理题目、物理概念、物理计算和物理实验现象相关内容。
 
+答错选择题时，前端会把题干、A/B/C 选项原文、学生所选选项文本、正确答案和标准解析一起传给 AI，避免 AI 只做泛泛解释。
+
 ## 技术栈
 
 | 模块 | 技术 |
@@ -97,6 +99,7 @@ Prompt 约束：只回答物理题目、物理概念、物理计算和物理实�
 | 流式输出 | Server-Sent Events |
 | 部署 | Docker Compose + Nginx + Uvicorn |
 | 题库 | 代码内置题库，后续可扩展到 PostgreSQL / Supabase |
+| 学习记录 | LocalStorage 记录已练题数、正确率和错题数量 |
 
 ## 快速启动
 
@@ -224,6 +227,7 @@ Windows 下运行 Docker Desktop 需要开启虚拟化 / WSL 2。如果本机为
 3. 到公式实验室选择「阿基米德原理」，计算 `1000 × 10 × 0.003 = 30 N`。
 4. 到真实题训练区故意答错一道题，查看标准解析和错因提示。
 5. 点击「让 AI 针对我的错误讲一遍」，观察 AI 小老师流式解释。
+6. 练习区会自动记录本机已练题数、正确率和错题数量，可随时清空。
 
 完整讲解脚本见：[docs/demo-script.md](docs/demo-script.md)。
 
@@ -278,6 +282,7 @@ docker compose config
 - [部署说明](docs/deployment-guide.md)
 - [演示脚本](docs/demo-script.md)
 - [项目总结](docs/project-summary.md)
+- [AI 协作过程记录](docs/ai-collaboration-notes.md)
 
 ## 后续可扩展方向
 

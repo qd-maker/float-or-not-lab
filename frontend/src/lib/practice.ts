@@ -274,7 +274,7 @@ export function localSubmitPractice(question: PracticeQuestion, studentAnswer: s
 
 export function localAiExplanation(result: PracticeSubmitResult): AiExplanation {
   return {
-    short_explanation: `AI 小老师暂时使用本地解释：这题的标准答案是 ${result.correct_answer}，你需要先判断题型再套公式。`,
+    short_explanation: `AI 小老师先用基础讲解告诉你：这题的标准答案是 ${result.correct_answer}，你需要先判断题型再套公式。`,
     hint: "称重法看 G物 和 F示，阿基米德公式看 ρ液、g、V排，漂浮题直接看 F浮 = G物。",
     next_step: "把题干里的已知量圈出来，再跟着标准解析重新做一遍。",
   };
@@ -282,8 +282,8 @@ export function localAiExplanation(result: PracticeSubmitResult): AiExplanation 
 
 export function localAiAskResult(): AiAskResult {
   return {
-    answer: "AI 小老师还没配置密钥或中转站暂时不可用。配置 OPENAI_API_KEY 后，这里会根据你的提问实时回答物理题。",
-    scope: "本地降级",
+    answer: "AI 小老师暂时不能连上在线讲解，但你仍然可以先看标准解析。做浮力题时，先判断题型，再找已知量，最后套对应公式。",
+    scope: "基础讲解",
     next_prompt: "可以问：这道题应该先找哪些已知量？",
   };
 }

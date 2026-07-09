@@ -61,9 +61,7 @@ class FormulaCalculateRequest(BaseModel):
     )
     g_n_kg: float = Field(
         default=10,
-        gt=0,
-        le=20,
-        description="重力常数，初中题常取 10 N/kg",
+        description="重力常数，初中题通常只取 10 N/kg，少数题取 9.8 N/kg",
         examples=[10],
     )
     object_weight_n: Optional[float] = Field(
@@ -86,6 +84,8 @@ class FormulaCalculateRequest(BaseModel):
         if self.mode == FormulaMode.ARCHIMEDES:
             if self.liquid_density_kg_m3 is None or self.displaced_volume_m3 is None:
                 raise ValueError("阿基米德模式需要填写液体密度和排开液体体积。")
+            if self.g_n_kg not in (10, 9.8):
+                raise ValueError("初中浮力题中 g 通常只取 10 N/kg 或 9.8 N/kg。")
 
         if self.mode == FormulaMode.WEIGHING:
             if self.object_weight_n is None or self.spring_scale_reading_n is None:
@@ -170,6 +170,12 @@ class AiAskRequest(BaseModel):
     current_question: Optional[str] = Field(default=None, max_length=1000)
     standard_answer: Optional[str] = Field(default=None, max_length=200)
     student_answer: Optional[str] = Field(default=None, max_length=200)
+    question_options: Optional[list[QuestionOption]] = Field(default=None, max_length=6)
+    correct_option: Optional[str] = Field(default=None, max_length=20)
+    selected_option_text: Optional[str] = Field(default=None, max_length=300)
+    correct_answer_text: Optional[str] = Field(default=None, max_length=300)
+    analysis_steps: list[str] = Field(default_factory=list, max_length=8)
+    mistake_tip: Optional[str] = Field(default=None, max_length=500)
 
 
 class AiAskResponse(BaseModel):

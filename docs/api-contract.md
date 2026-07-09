@@ -120,6 +120,8 @@ POST /api/buoyancy/formula/calculate
 }
 ```
 
+说明：`g_n_kg` 只接受初中题常用的 `10` 或 `9.8`，避免学生随意输入非标准常数造成误导。
+
 #### Response 200
 
 ```json
@@ -338,8 +340,8 @@ POST /api/ai/ask
 
 - 使用项目根目录 `.env` 中的 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_API_KEY`。
 - 默认模型：`gpt-4o`。
-- 没有 API Key 或中转站不可用时，返回本地降级提示。
-- 可以带上当前题目、标准答案和学生答案作为上下文。
+- 没有 API Key 或中转站不可用时，返回基础讲解兜底提示。
+- 可以带上当前题目、题目选项、学生所选选项文本、标准答案和学生答案作为上下文。
 
 ### Request Body
 
@@ -347,8 +349,17 @@ POST /api/ai/ask
 {
   "message": "为什么漂浮时浮力等于重力？",
   "current_question": "一块木块漂浮在水面上，木块重 5 N，它受到的浮力是多少？",
+  "question_options": [
+    { "id": "A", "text": "大于 5 N" },
+    { "id": "B", "text": "等于 5 N" },
+    { "id": "C", "text": "小于 5 N" }
+  ],
+  "correct_option": "B",
+  "selected_option_text": "大于 5 N",
   "standard_answer": "5 N",
-  "student_answer": "8 N"
+  "student_answer": "8 N",
+  "analysis_steps": ["题目说木块漂浮。", "漂浮时 F浮 = G物。", "所以 F浮 = 5 N。"],
+  "mistake_tip": "漂浮时物体处于平衡状态，浮力等于重力。"
 }
 ```
 
@@ -375,7 +386,7 @@ POST /api/ai/ask/stream
 - 使用项目根目录 `.env` 中的 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_API_KEY`。
 - 默认模型：`gpt-4o`。
 - 有可用 AI key 时，后端调用 OpenAI-compatible Chat Completions `stream=true`。
-- 没有 API Key、关闭 AI 或中转站不可用时，仍按 SSE 格式返回本地降级解释。
+- 没有 API Key、关闭 AI 或中转站不可用时，仍按 SSE 格式返回基础讲解兜底解释。
 - Prompt 继续约束为只回答物理题目、物理概念、物理计算和物理实验现象相关内容。
 
 ### SSE Event：chunk

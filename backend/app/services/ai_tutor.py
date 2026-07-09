@@ -6,7 +6,7 @@ from typing import Any, Iterator
 from app.schemas import AiAskRequest, AiAskResponse, AiExplainMistakeRequest, AiExplainMistakeResponse
 
 
-FALLBACK_PREFIX = "AI 小老师暂时使用本地解释："
+FALLBACK_PREFIX = "AI 小老师先用基础讲解告诉你："
 
 
 def fallback_explanation(payload: AiExplainMistakeRequest) -> AiExplainMistakeResponse:
@@ -144,10 +144,16 @@ def explain_mistake(payload: AiExplainMistakeRequest) -> AiExplainMistakeRespons
 
 def fallback_ask_response() -> AiAskResponse:
     return AiAskResponse(
-        answer="AI 小老师还没有配置密钥或中转站暂时不可用。你可以先看题目的标准解析；配置 OPENAI_API_KEY 后，这里会按你的问题实时讲解物理题。",
-        scope="本地降级",
+        answer="AI 小老师暂时不能连上在线讲解，但你仍然可以先看标准解析。做浮力题时，先判断题型，再找已知量，最后套对应公式。",
+        scope="基础讲解",
         next_prompt="可以问：这道题应该先找哪些已知量？",
     )
+
+
+def _options_text(payload: AiAskRequest) -> str:
+    if not payload.question_options:
+        return "无"
+    return "；".join(f"{option.id}. {option.text}" for option in payload.question_options)
 
 
 def _ask_messages(payload: AiAskRequest, stream: bool = False) -> list[dict[str, str]]:
@@ -161,17 +167,31 @@ def _ask_messages(payload: AiAskRequest, stream: bool = False) -> list[dict[str,
             [
                 f"学生问题：{payload.message}",
                 f"当前题目：{payload.current_question or '无'}",
+                f"题目选项：{_options_text(payload)}",
+                f"学生所选选项文本：{payload.selected_option_text or '无'}",
                 f"标准答案：{payload.standard_answer or '无'}",
+                f"正确选项：{payload.correct_option or '无'}",
+                f"正确答案文本：{payload.correct_answer_text or '无'}",
                 f"学生答案：{payload.student_answer or '无'}",
+                f"标准解析：{'；'.join(payload.analysis_steps) if payload.analysis_steps else '无'}",
+                f"系统错因提示：{payload.mistake_tip or '无'}",
+                "如果学生选错了选择题，必须点名学生选项的具体文字，并说明它为什么不对。",
+                "如果有标准解析和错因提示，优先贴合这些内容，不要泛泛改写成别的选项。",
                 "请直接回答学生，不要复述这些字段名。",
             ]
         )
     else:
-        user_payload: dict[str, str | None | dict[str, str]] = {
+        user_payload: dict[str, Any] = {
             "student_question": payload.message,
             "current_question_context": payload.current_question,
+            "question_options": _options_text(payload),
+            "selected_option_text": payload.selected_option_text,
             "standard_answer": payload.standard_answer,
+            "correct_option": payload.correct_option,
+            "correct_answer_text": payload.correct_answer_text,
             "student_answer": payload.student_answer,
+            "analysis_steps": payload.analysis_steps,
+            "mistake_tip": payload.mistake_tip,
         }
         user_payload["output_schema"] = {
             "answer": "对学生问题的物理讲解；非物理问题只拒绝并说明只能答物理题",
@@ -189,6 +209,8 @@ def _ask_messages(payload: AiAskRequest, stream: bool = False) -> list[dict[str,
                 "重点用初中生能听懂的语言解释，不要闲聊，不要回答与物理学习无关的问题。"
                 "如果用户问的不是物理题或物理学习内容，必须只说明：我只能回答物理题目相关的问题。"
                 "回答物理题时按这个顺序：先判断题型，再列已知量，再写公式，再代入或解释原因，最后给一个下一步练习建议。"
+                "如果当前题是选择题，必须阅读题目选项原文；学生选错时，要针对学生选中的具体选项文字进行反驳。"
+                "不得把选项内容改写成题目中没有出现过的说法。"
                 "控制在 5 到 8 句话内，每句话短一点，适合初中生阅读。"
                 f"{output_rule}"
             ),
@@ -209,7 +231,7 @@ def _fallback_stream(payload: AiAskRequest | None = None) -> Iterator[str]:
     text = fallback.answer
     if payload and payload.current_question:
         text = (
-            "AI 小老师暂时使用本地解释：先看这道题属于哪类物理问题，再把题干里的已知量圈出来。"
+            "AI 小老师先用基础讲解告诉你：先看这道题属于哪类物理问题，再把题干里的已知量圈出来。"
             "如果是浮力题，优先比较 F浮 和 G物；如果要计算，就看题目给的是密度体积、测力计示数，还是漂浮条件。"
         )
     for chunk in [text[i : i + 24] for i in range(0, len(text), 24)]:

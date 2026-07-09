@@ -1,3 +1,5 @@
+name: float-or-not-lab
+
 services:
   api:
     build:
@@ -6,15 +8,25 @@ services:
     ports:
       - "8000:8000"
     environment:
-      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      ENABLE_AI_TUTOR: ${ENABLE_AI_TUTOR:-true}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web:
     build:
       context: ./frontend
+      args:
+        VITE_API_BASE_URL: ""
     container_name: float-or-not-lab-web
     ports:
-      - "5173:5173"
-    environment:
-      VITE_API_BASE_URL: "http://localhost:8000"
+      - "5173:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy

@@ -8,9 +8,9 @@
 
 ## 当前阶段
 
-Gate3 AI 协作挑战 Day3 本地版本。
+Gate3 AI 协作挑战 Day4 可部署版本。
 
-今天的重点不是做完整课程，而是先把项目范围、API Contract、工程骨架和每日进度记录搭起来，保证后续每天都能在 GitHub 上持续更新。
+当前版本已经完成概念实验、公式实验室、真实题目训练、AI 小老师和 Docker 部署收口，可以本地运行，也可以部署到服务器演示。
 
 经过 Day1 复盘，项目方向从「两个数判断浮不浮」升级为：
 
@@ -34,7 +34,7 @@ F浮 = ρ液 g V排
 F浮 = G物 - F示
 ```
 
-其中 Day1 已实现概念实验，Day2 已实现公式实验室，Day3 已实现真实题目训练和可选 AI 错因解释。
+其中 Day1 已实现概念实验，Day2 已实现公式实验室，Day3 已实现真实题目训练和可选 AI 小老师，Day4 已完成 Docker 部署和演示文档收口。
 
 判断规则：
 
@@ -190,12 +190,17 @@ http://localhost:5173
 
 ### 4. Docker 运行
 
+Docker 方式更接近最终部署：前端会先构建为静态文件，再由 Nginx 托管；浏览器请求 `/api/...` 时由 Nginx 转发给 FastAPI。
+
 ```bash
 docker compose up --build
 ```
 
 - 前端：http://localhost:5173
 - 后端：http://localhost:8000
+- 健康检查：http://localhost:5173/health
+
+更完整的服务器部署步骤见：[docs/deployment-guide.md](docs/deployment-guide.md)
 
 ### 5. AI 小老师说明
 
@@ -210,7 +215,7 @@ Prompt 约束：AI 只允许回答物理题目、物理概念、物理计算和�
 
 前端默认使用 `POST /api/ai/ask/stream` 进行 Server-Sent Events 流式输出，所以长答案会像聊天产品一样逐段显示；如果没有配置 `OPENAI_API_KEY`，后端仍会用本地模板按同样格式返回。
 
-## Day1 到 Day3 产出
+## Day1 到 Day4 产出
 
 - [x] 确定选题：初中物理浮力
 - [x] 确定项目名：浮不浮实验室
@@ -223,13 +228,14 @@ Prompt 约束：AI 只允许回答物理题目、物理概念、物理计算和�
 - [x] Day2 完成公式实验室：阿基米德公式、称重法、漂浮平衡
 - [x] Day3 完成真实题目训练：10 道题、判题、分步解析、错因提示
 - [x] Day3 增加可选 AI 小老师：支持流式输出，无 key 自动降级，不影响演示
+- [x] Day4 完成 Docker 部署收口：前端 Nginx 静态托管，后端 FastAPI 容器化
+- [x] Day4 完成演示脚本、部署说明和项目总结
 
-## Day2 到 Day4 调整后路线
+## Day4 交付文档
 
-| 天数 | 重点 | 产出 |
-| --- | --- | --- |
-| Day2 | 公式实验室 | 阿基米德公式、称重法、漂浮平衡，显示分步计算过程 |
-| Day3 | 真题训练模式 | 选择题、填空题、分步解析、错因提示 |
-| Day4 | 部署和演示 | Docker 部署、README 完善、演示脚本、项目总结 |
-
-详细记录见：[docs/gate3-daily-progress.md](docs/gate3-daily-progress.md)
+- 每日进度：[docs/gate3-daily-progress.md](docs/gate3-daily-progress.md)
+- API Contract：[docs/api-contract.md](docs/api-contract.md)
+- 四天计划：[docs/product-plan.md](docs/product-plan.md)
+- 部署说明：[docs/deployment-guide.md](docs/deployment-guide.md)
+- 演示脚本：[docs/demo-script.md](docs/demo-script.md)
+- 项目总结：[docs/project-summary.md](docs/project-summary.md)

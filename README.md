@@ -1,93 +1,115 @@
 # 浮不浮实验室 Float or Not Lab
 
-一个面向小学高年级和初中生的浮力科普小工具。
+一个面向小学高年级和初中生的浮力交互学习工具。它把「浮力为什么能托住物体」拆成概念实验、公式计算、真实题训练和 AI 小老师四个环节，让学生从看懂现象到能做题。
 
-学生输入「物体重量」和「完全浸没时排开水的重量」，观察物体在水中的上浮、悬浮或下沉结果，从而理解：
+> 核心目标：让学生明白物体能不能浮起来，不是只看它重不重，而是看浮力能不能托住它。
 
-> 物体能不能浮起来，不是只看它重不重，而是看它受到的浮力能不能托住它。
+## 项目截图
 
-## 当前阶段
+### 1. 概念实验：看见上浮、悬浮、下沉
 
-Gate3 AI 协作挑战 Day4 可部署版本。
+![概念实验区](docs/images/float-lab-overview.png)
 
-当前版本已经完成概念实验、公式实验室、真实题目训练、AI 小老师和 Docker 部署收口，可以本地运行，也可以部署到服务器演示。
+### 2. 公式实验室：从现象过渡到计算
 
-经过 Day1 复盘，项目方向从「两个数判断浮不浮」升级为：
+![公式实验室](docs/images/float-lab-formula.png)
 
-```text
-概念演示 + 公式计算 + 真实题目训练
-```
+### 3. 真实题训练 + AI 小老师
 
-这样仍然只围绕「浮力」一个知识点，但能更贴近初中真实学习内容，让学生不只是看动画，还能练会公式和题型。
+![真实题训练和 AI 小老师](docs/images/float-lab-practice-ai.png)
 
-## 核心知识点
+## 项目能做什么
 
-只讲一个知识点：
+### 概念实验
 
-> 物体在水中会受到向上的浮力；物体完全浸没时，最大浮力近似等于它排开水的重量。
+学生输入：
 
-后续会补充初中常见计算公式：
+- 物体重量，单位 `N`
+- 物体完全浸没时排开水的重量，单位 `N`
 
-```text
-F浮 = G排
-F浮 = ρ液 g V排
-F浮 = G物 - F示
-```
+系统会判断物体之后的运动趋势：
 
-其中 Day1 已实现概念实验，Day2 已实现公式实验室，Day3 已实现真实题目训练和可选 AI 小老师，Day4 已完成 Docker 部署和演示文档收口。
+| 比较关系 | 结果 | 学生能看到 |
+| --- | --- | --- |
+| 最大浮力 > 重力 | 上浮 | 物体浮到水面，浮力箭头更长 |
+| 最大浮力 ≈ 重力 | 悬浮 | 物体停在水中间，两个力接近平衡 |
+| 最大浮力 < 重力 | 下沉 | 物体沉到底部，重力箭头更长 |
 
-判断规则：
+这里比较的是「物体刚完全浸没时的最大浮力」。如果物体最终漂浮，浮力会重新等于物体重力。
 
-概念实验比较的是物体刚完全浸没时的最大浮力；如果物体最终漂浮，浮力会重新等于物体重力。
+### 公式实验室
 
-| 完全浸没时排开水的重量和物体重量关系 | 结果 |
-| --- | --- |
-| 完全浸没时排开水的重量 > 物体重量 | 上浮 |
-| 完全浸没时排开水的重量 ≈ 物体重量 | 悬浮 |
-| 完全浸没时排开水的重量 < 物体重量 | 下沉 |
+支持初中常见的三类浮力公式：
 
-## 目标用户
+| 题型 | 公式 | 什么时候用 |
+| --- | --- | --- |
+| 阿基米德原理 | `F浮 = ρ液 g V排` | 题目给液体密度、排开体积 |
+| 称重法 | `F浮 = G物 - F示` | 题目给空气中重力和水中测力计示数 |
+| 漂浮平衡 | `F浮 = G物` | 题目明确说物体漂浮 |
 
-- 小学高年级学生
-- 初中物理入门学生
-- 需要快速理解「浮力为什么能托住物体」的学习者
+每次计算都会展示：
+
+1. 使用公式
+2. 数字代入过程
+3. 最终结果
+4. 一句适合初中生的解释
+
+### 真实题训练
+
+内置 10 道初中浮力题，覆盖：
+
+- 判断浮沉
+- 称重法求浮力
+- 阿基米德公式
+- 漂浮平衡
+- 轮船、潜水艇等生活应用
+
+学生提交答案后会看到：
+
+- 正误反馈
+- 标准答案
+- 分步解析
+- 动态错因提示
+
+例如阿基米德题正确答案是 `30 N`，学生答成 `3` 时，系统会提示可能漏乘了 `g`，而不是只显示一个固定错误说明。
+
+### AI 小老师
+
+AI 小老师用于补充讲解，不替代标准答案。
+
+能力：
+
+- 答错后针对当前错误换一种说法解释
+- 支持直接输入物理问题
+- 提供快捷追问按钮
+- 支持 Server-Sent Events 流式输出
+- 没有 API Key 时自动降级为本地模板解释
+
+Prompt 约束：只回答物理题目、物理概念、物理计算和物理实验现象相关内容。
 
 ## 技术栈
 
-- Frontend：React + Vite + TypeScript
-- Backend：FastAPI + Pydantic
-- Data：PostgreSQL / Supabase 预留，当前题库先内置在代码中
-- Deploy：Docker 优先
+| 模块 | 技术 |
+| --- | --- |
+| 前端 | React + Vite + TypeScript |
+| 后端 | FastAPI + Pydantic |
+| AI | OpenAI-compatible API，支持自定义 `OPENAI_BASE_URL` |
+| 流式输出 | Server-Sent Events |
+| 部署 | Docker Compose + Nginx + Uvicorn |
+| 题库 | 代码内置题库，后续可扩展到 PostgreSQL / Supabase |
 
-## 项目结构
+## 快速启动
 
-```text
-float-or-not-lab/
-├─ backend/                 # FastAPI 后端
-├─ frontend/                # React 前端
-├─ docs/
-│  ├─ api-contract.md
-│  ├─ product-plan.md
-│  └─ gate3-daily-progress.md
-├─ docker-compose.yml
-├─ PRODUCT.md
-├─ DESIGN.md
-└─ README.md
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/qd-maker/float-or-not-lab.git
+cd float-or-not-lab
 ```
 
-## 本地部署和启动
+### 2. 准备环境变量
 
-下面命令默认从项目根目录运行：
-
-```text
-C:\Users\qd\Documents\实习试用期
-```
-
-如果你的终端已经在 `backend` 目录里，就不要再执行 `cd backend`，否则会变成 `backend\backend`，导致路径不存在。
-
-### 0. 准备环境变量
-
-项目根目录提供 `.env.example`。第一次运行时复制一份为 `.env`：
+复制 `.env.example` 为 `.env`：
 
 ```bash
 cp .env.example .env
@@ -110,37 +132,16 @@ OPENAI_API_KEY=
 
 说明：
 
-- `.env` 放在项目根目录，不放进 GitHub。
-- `OPENAI_BASE_URL`：OpenAI-compatible 中转站地址，通常以 `/v1` 结尾。
-- `OPENAI_MODEL`：当前默认使用 `gpt-4o`。
-- `OPENAI_API_KEY`：本地自己填写，不要提交到 GitHub。
-- 没有 key 时，基础题库、判题、解析仍然可用，AI 提问会显示本地降级提示。
+- `OPENAI_API_KEY` 不填也能运行基础功能。
+- 如果使用中转站，把 `OPENAI_BASE_URL` 改成中转站的 OpenAI-compatible `/v1` 地址。
+- `.env` 已被 `.gitignore` 忽略，不要提交真实密钥。
 
-### 1. 启动后端
+## 本地开发启动
 
-#### 方式 A：从项目根目录启动
+### 后端
 
 ```powershell
-cd C:\Users\qd\Documents\实习试用期
 cd backend
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-$env:PYTHONPATH=(Get-Location).Path
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-#### 方式 B：如果你已经在 backend 目录
-
-你的提示符类似这样时：
-
-```text
-PS C:\Users\qd\Documents\实习试用期\backend>
-```
-
-直接运行下面这些，不要再 `cd backend`：
-
-```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -165,9 +166,9 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health
 ```
 
-### 2. 启动前端
+### 前端
 
-另开一个终端，从项目根目录运行：
+另开一个终端：
 
 ```bash
 cd frontend
@@ -181,61 +182,107 @@ npm run dev
 http://localhost:5173
 ```
 
-### 3. 推荐体验路径
+## Docker 部署
 
-1. 先看「概念实验区」：调整物体重量和完全浸没时排开水重量。
-2. 再看「公式实验室」：练阿基米德公式、称重法、漂浮平衡。
-3. 最后看「真实题目训练」：选择题型、提交答案、看分步解析。
-4. 配好 `OPENAI_API_KEY` 后，在「AI 小老师」里直接提问物理题。
-
-### 4. Docker 运行
-
-Docker 方式更接近最终部署：前端会先构建为静态文件，再由 Nginx 托管；浏览器请求 `/api/...` 时由 Nginx 转发给 FastAPI。
+Docker 方式更接近生产部署：前端先构建成静态文件，再由 Nginx 托管；浏览器请求 `/api/...` 时由 Nginx 转发给 FastAPI。
 
 ```bash
 docker compose up --build
 ```
 
-- 前端：http://localhost:5173
-- 后端：http://localhost:8000
-- 健康检查：http://localhost:5173/health
+访问：
 
-更完整的服务器部署步骤见：[docs/deployment-guide.md](docs/deployment-guide.md)
+```text
+前端：http://localhost:5173
+后端：http://localhost:8000
+健康检查：http://localhost:5173/health
+```
 
-### 5. AI 小老师说明
+Windows 下运行 Docker Desktop 需要开启虚拟化 / WSL 2。如果本机为了 eNSP 等软件关闭了虚拟化，可以先使用上面的本地开发启动方式。
 
-Day3 的 AI 功能是可选增强，不影响基础 demo。
+更完整的服务器部署步骤见：[docs/deployment-guide.md](docs/deployment-guide.md)。
 
-它有两个入口：
+## API 概览
 
-- 答错后点「让 AI 针对我的错误讲一遍」。
-- 在「AI 小老师」输入框里自由提问物理题，或者点击快捷提问按钮。
+| 接口 | 作用 |
+| --- | --- |
+| `GET /health` | 健康检查 |
+| `POST /api/buoyancy/calculate` | 判断上浮、悬浮、下沉 |
+| `POST /api/buoyancy/formula/calculate` | 公式计算和分步解析 |
+| `GET /api/practice/questions` | 获取内置题库 |
+| `POST /api/practice/submit` | 提交答案并返回错因提示 |
+| `POST /api/ai/explain-mistake` | AI 错因解释 |
+| `POST /api/ai/ask` | AI 普通问答 |
+| `POST /api/ai/ask/stream` | AI 流式问答 |
 
-Prompt 约束：AI 只允许回答物理题目、物理概念、物理计算和物理实验现象相关内容。非物理问题会被要求拒答。快捷提问会根据学生当前答题状态动态变化。
+详细接口见：[docs/api-contract.md](docs/api-contract.md)。
 
-前端默认使用 `POST /api/ai/ask/stream` 进行 Server-Sent Events 流式输出，所以长答案会像聊天产品一样逐段显示；如果没有配置 `OPENAI_API_KEY`，后端仍会用本地模板按同样格式返回。
+## 推荐演示路径
 
-## Day1 到 Day4 产出
+1. 在概念实验区输入 `8 N` 和 `10 N`，观察物体上浮。
+2. 改成 `10 N` 和 `6 N`，观察物体下沉。
+3. 到公式实验室选择「阿基米德原理」，计算 `1000 × 10 × 0.003 = 30 N`。
+4. 到真实题训练区故意答错一道题，查看标准解析和错因提示。
+5. 点击「让 AI 针对我的错误讲一遍」，观察 AI 小老师流式解释。
 
-- [x] 确定选题：初中物理浮力
-- [x] 确定项目名：浮不浮实验室
-- [x] 明确学习目标
-- [x] 写出 API Contract
-- [x] 搭建 FastAPI 后端骨架
-- [x] 搭建 React 前端骨架
-- [x] 建立每日进度文档
-- [x] 复盘发现单纯判断浮沉偏单调，已调整 Day2 到 Day4 方向
-- [x] Day2 完成公式实验室：阿基米德公式、称重法、漂浮平衡
-- [x] Day3 完成真实题目训练：10 道题、判题、分步解析、错因提示
-- [x] Day3 增加可选 AI 小老师：支持流式输出，无 key 自动降级，不影响演示
-- [x] Day4 完成 Docker 部署收口：前端 Nginx 静态托管，后端 FastAPI 容器化
-- [x] Day4 完成演示脚本、部署说明和项目总结
+完整讲解脚本见：[docs/demo-script.md](docs/demo-script.md)。
 
-## Day4 交付文档
+## 项目结构
 
-- 每日进度：[docs/gate3-daily-progress.md](docs/gate3-daily-progress.md)
-- API Contract：[docs/api-contract.md](docs/api-contract.md)
-- 四天计划：[docs/product-plan.md](docs/product-plan.md)
-- 部署说明：[docs/deployment-guide.md](docs/deployment-guide.md)
-- 演示脚本：[docs/demo-script.md](docs/demo-script.md)
-- 项目总结：[docs/project-summary.md](docs/project-summary.md)
+```text
+float-or-not-lab/
+├─ backend/                    # FastAPI 后端
+│  ├─ app/
+│  └─ tests/
+├─ frontend/                   # React 前端
+│  ├─ src/
+│  └─ nginx.conf
+├─ docs/
+│  ├─ images/                  # README 截图
+│  ├─ api-contract.md
+│  ├─ deployment-guide.md
+│  ├─ demo-script.md
+│  └─ project-summary.md
+├─ docker-compose.yml
+├─ PRODUCT.md
+├─ DESIGN.md
+└─ README.md
+```
+
+## 测试与验证
+
+后端测试：
+
+```bash
+cd backend
+$env:PYTHONPATH=(Get-Location).Path
+.venv\Scripts\python.exe -m pytest tests -q
+```
+
+前端构建：
+
+```bash
+cd frontend
+npm run build
+```
+
+Docker 配置检查：
+
+```bash
+docker compose config
+```
+
+## 项目文档
+
+- [API Contract](docs/api-contract.md)
+- [部署说明](docs/deployment-guide.md)
+- [演示脚本](docs/demo-script.md)
+- [项目总结](docs/project-summary.md)
+
+## 后续可扩展方向
+
+- 增加错题记录和正确率统计
+- 让 AI 根据错因生成相似变式题
+- 接入 Supabase / PostgreSQL 保存题库和答题记录
+- 增加教师视角，查看学生常错题型
+- 扩展更多初中物理实验，如压强、杠杆、摩擦力

@@ -28,16 +28,28 @@ const formulaModeLabels: Record<FormulaMode, { title: string; subtitle: string; 
 const defaultAiQuickPrompts = ["这题先找哪些已知量？", "为什么要用 m³ 作单位？", "如果换成盐水，浮力会怎样？"];
 const PRACTICE_STATS_STORAGE_KEY = "float-lab-practice-stats";
 
+interface PracticeRecord {
+  questionId: string;
+  attempts: number;
+  correctAttempts: number;
+  lastCorrect: boolean;
+  everWrong: boolean;
+  lastAnswer: string;
+  updatedAt: string;
+}
+
 interface PracticeStats {
-  answered: number;
-  correct: number;
-  wrongQuestionIds: string[];
+  version: 2;
+  totalAttempts: number;
+  correctAttempts: number;
+  records: Record<string, PracticeRecord>;
 }
 
 const emptyPracticeStats: PracticeStats = {
-  answered: 0,
-  correct: 0,
-  wrongQuestionIds: [],
+  version: 2,
+  totalAttempts: 0,
+  correctAttempts: 0,
+  records: {},
 };
 
 const formulaExamples: Record<FormulaMode, Array<{ label: string; values: Partial<FormulaValues> }>> = {
@@ -69,11 +81,40 @@ function loadPracticeStats(): PracticeStats {
     if (!raw) {
       return emptyPracticeStats;
     }
-    const parsed = JSON.parse(raw) as PracticeStats;
+    const parsed = JSON.parse(raw) as Partial<PracticeStats> & {
+      answered?: number;
+      correct?: number;
+      wrongQuestionIds?: string[];
+    };
+
+    if (parsed.version === 2 && parsed.records && typeof parsed.records === "object") {
+      return {
+        version: 2,
+        totalAttempts: Number.isFinite(parsed.totalAttempts) ? Number(parsed.totalAttempts) : 0,
+        correctAttempts: Number.isFinite(parsed.correctAttempts) ? Number(parsed.correctAttempts) : 0,
+        records: parsed.records,
+      };
+    }
+
+    const migratedRecords = Object.fromEntries(
+      (Array.isArray(parsed.wrongQuestionIds) ? parsed.wrongQuestionIds : []).map((questionId) => [
+        questionId,
+        {
+          questionId,
+          attempts: 1,
+          correctAttempts: 0,
+          lastCorrect: false,
+          everWrong: true,
+          lastAnswer: "",
+          updatedAt: new Date(0).toISOString(),
+        },
+      ])
+    );
     return {
-      answered: Number.isFinite(parsed.answered) ? parsed.answered : 0,
-      correct: Number.isFinite(parsed.correct) ? parsed.correct : 0,
-      wrongQuestionIds: Array.isArray(parsed.wrongQuestionIds) ? parsed.wrongQuestionIds : [],
+      version: 2,
+      totalAttempts: Number.isFinite(parsed.answered) ? Number(parsed.answered) : 0,
+      correctAttempts: Number.isFinite(parsed.correct) ? Number(parsed.correct) : 0,
+      records: migratedRecords,
     };
   } catch {
     return emptyPracticeStats;
@@ -81,10 +122,10 @@ function loadPracticeStats(): PracticeStats {
 }
 
 function formatAccuracy(stats: PracticeStats) {
-  if (stats.answered === 0) {
+  if (stats.totalAttempts === 0) {
     return "还没开始";
   }
-  return `${Math.round((stats.correct / stats.answered) * 100)}%`;
+  return `${Math.round((stats.correctAttempts / stats.totalAttempts) * 100)}%`;
 }
 
 function App() {
@@ -126,6 +167,7 @@ function App() {
   const [practiceLoading, setPracticeLoading] = useState(false);
   const [practiceError, setPracticeError] = useState("");
   const [practiceStats, setPracticeStats] = useState<PracticeStats>(() => loadPracticeStats());
+  const [practiceView, setPracticeView] = useState<"all" | "mistakes">("all");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiAskResult, setAiAskResult] = useState<AiAskResult | null>(null);
@@ -155,12 +197,68 @@ function App() {
     return Array.from(groups.entries());
   }, [practiceQuestions]);
 
+  const mistakeQuestionIds = useMemo(
+    () =>
+      new Set(
+        Object.values(practiceStats.records)
+          .filter((record) => record.everWrong)
+          .map((record) => record.questionId)
+      ),
+    [practiceStats.records]
+  );
+
+  const pendingCorrectionIds = useMemo(
+    () =>
+      new Set(
+        Object.values(practiceStats.records)
+          .filter((record) => record.everWrong && !record.lastCorrect)
+          .map((record) => record.questionId)
+      ),
+    [practiceStats.records]
+  );
+
   const visiblePracticeQuestions = useMemo(() => {
+    if (practiceView === "mistakes") {
+      return practiceQuestions.filter((question) => mistakeQuestionIds.has(question.id));
+    }
     if (!activePracticeTopic) {
       return practiceQuestions;
     }
     return practiceQuestions.filter((question) => question.topic === activePracticeTopic);
-  }, [activePracticeTopic, practiceQuestions]);
+  }, [activePracticeTopic, mistakeQuestionIds, practiceQuestions, practiceView]);
+
+  const learningSummary = useMemo(() => {
+    const records = Object.values(practiceStats.records);
+    const topicMap = new Map<string, { attempts: number; correct: number }>();
+
+    for (const record of records) {
+      const question = practiceQuestions.find((item) => item.id === record.questionId);
+      if (!question) {
+        continue;
+      }
+      const current = topicMap.get(question.topic) ?? { attempts: 0, correct: 0 };
+      current.attempts += record.attempts;
+      current.correct += record.correctAttempts;
+      topicMap.set(question.topic, current);
+    }
+
+    const topics = Array.from(topicMap.entries()).map(([topic, value]) => ({
+      topic,
+      attempts: value.attempts,
+      accuracy: value.attempts === 0 ? 0 : value.correct / value.attempts,
+    }));
+    const weakest = [...topics].sort((left, right) => left.accuracy - right.accuracy || right.attempts - left.attempts)[0];
+    const strongest = [...topics].sort((left, right) => right.accuracy - left.accuracy || right.attempts - left.attempts)[0];
+
+    return {
+      completed: records.length,
+      pending: pendingCorrectionIds.size,
+      weakest: weakest?.topic ?? "等待练习",
+      strongest: strongest?.topic ?? "等待练习",
+      topicCount: topics.length,
+      progress: practiceQuestions.length === 0 ? 0 : Math.round((records.length / practiceQuestions.length) * 100),
+    };
+  }, [pendingCorrectionIds, practiceQuestions, practiceStats.records]);
 
   const aiQuickPrompts = useMemo(() => {
     if (!selectedQuestion) {
@@ -341,6 +439,7 @@ function App() {
 
   function selectPracticeTopic(topic: string) {
     const firstQuestion = practiceQuestions.find((question) => question.topic === topic);
+    setPracticeView("all");
     setActivePracticeTopic(topic);
     if (firstQuestion) {
       selectPracticeQuestion(firstQuestion.id);
@@ -374,18 +473,47 @@ function App() {
 
   function resetPracticeStats() {
     setPracticeStats(emptyPracticeStats);
+    setPracticeView("all");
     window.localStorage.removeItem(PRACTICE_STATS_STORAGE_KEY);
+  }
+
+  function selectPracticeView(view: "all" | "mistakes") {
+    setPracticeView(view);
+    if (view === "mistakes") {
+      const firstMistake = practiceQuestions.find((question) => mistakeQuestionIds.has(question.id));
+      if (firstMistake) {
+        selectPracticeQuestion(firstMistake.id);
+        setPracticeView("mistakes");
+      }
+      return;
+    }
+
+    const firstQuestion = practiceQuestions.find((question) => question.topic === activePracticeTopic) ?? practiceQuestions[0];
+    if (firstQuestion) {
+      selectPracticeQuestion(firstQuestion.id);
+    }
   }
 
   function recordPracticeResult(nextResult: PracticeSubmitResult) {
     setPracticeStats((current) => {
-      const wrongQuestionIds = nextResult.correct
-        ? current.wrongQuestionIds
-        : Array.from(new Set([...current.wrongQuestionIds, nextResult.question_id]));
-      const nextStats = {
-        answered: current.answered + 1,
-        correct: current.correct + (nextResult.correct ? 1 : 0),
-        wrongQuestionIds,
+      const previous = current.records[nextResult.question_id];
+      const nextRecord: PracticeRecord = {
+        questionId: nextResult.question_id,
+        attempts: (previous?.attempts ?? 0) + 1,
+        correctAttempts: (previous?.correctAttempts ?? 0) + (nextResult.correct ? 1 : 0),
+        lastCorrect: nextResult.correct,
+        everWrong: (previous?.everWrong ?? false) || !nextResult.correct,
+        lastAnswer: nextResult.student_answer,
+        updatedAt: new Date().toISOString(),
+      };
+      const nextStats: PracticeStats = {
+        version: 2,
+        totalAttempts: current.totalAttempts + 1,
+        correctAttempts: current.correctAttempts + (nextResult.correct ? 1 : 0),
+        records: {
+          ...current.records,
+          [nextResult.question_id]: nextRecord,
+        },
       };
       window.localStorage.setItem(PRACTICE_STATS_STORAGE_KEY, JSON.stringify(nextStats));
       return nextStats;
@@ -839,47 +967,113 @@ function App() {
             <p>
               选一道题，先自己作答，再看正误、标准答案、分步解析和错因提示。答错时可以让 AI 小老师换一种说法讲一遍。
             </p>
-            <div className="practice-stats" aria-label="练习统计">
-              <span>已练 {practiceStats.answered} 题</span>
-              <span>正确率 {practiceAccuracy}</span>
-              <span>错题 {practiceStats.wrongQuestionIds.length} 题</span>
-              {practiceStats.answered > 0 && (
-                <button type="button" onClick={resetPracticeStats}>
-                  清空记录
-                </button>
-              )}
-            </div>
           </div>
           <span className="source-pill">{practiceSource}</span>
         </div>
 
+        <section className="learning-dashboard" aria-labelledby="learning-dashboard-title">
+          <div className="learning-dashboard-copy">
+            <span className="topic-pill">我的学习情况</span>
+            <h3 id="learning-dashboard-title">
+              {practiceStats.totalAttempts === 0
+                ? "从第一题开始，实验室会帮你记录进步"
+                : learningSummary.pending > 0
+                  ? `还有 ${learningSummary.pending} 道错题等待订正`
+                  : "目前没有待订正错题，继续挑战下一类"}
+            </h3>
+            <p>
+              {practiceStats.totalAttempts === 0
+                ? "记录只保存在当前浏览器，不需要登录。"
+                : learningSummary.topicCount < 2
+                  ? `目前练习了「${learningSummary.weakest}」，再完成其他题型后会生成薄弱项建议。`
+                  : `建议优先练习「${learningSummary.weakest}」，当前掌握最好的是「${learningSummary.strongest}」。`}
+            </p>
+          </div>
+
+          <div className="learning-metrics" aria-label="学习数据">
+            <div>
+              <span>题库进度</span>
+              <strong>{learningSummary.completed}/{practiceQuestions.length}</strong>
+              <small>{learningSummary.progress}% 已完成</small>
+            </div>
+            <div>
+              <span>提交次数</span>
+              <strong>{practiceStats.totalAttempts}</strong>
+              <small>包含重新练习</small>
+            </div>
+            <div>
+              <span>正确率</span>
+              <strong>{practiceAccuracy}</strong>
+              <small>按提交次数计算</small>
+            </div>
+            <div>
+              <span>待订正</span>
+              <strong>{learningSummary.pending}</strong>
+              <small>答对后自动订正</small>
+            </div>
+          </div>
+
+          <div className="learning-progress" aria-label={`题库完成进度 ${learningSummary.progress}%`}>
+            <span style={{ width: `${learningSummary.progress}%` }} />
+          </div>
+
+          <div className="learning-actions">
+            <button
+              type="button"
+              className={practiceView === "all" ? "learning-filter is-active" : "learning-filter"}
+              aria-pressed={practiceView === "all"}
+              onClick={() => selectPracticeView("all")}
+            >
+              全部题目
+            </button>
+            <button
+              type="button"
+              className={practiceView === "mistakes" ? "learning-filter is-active" : "learning-filter"}
+              aria-pressed={practiceView === "mistakes"}
+              onClick={() => selectPracticeView("mistakes")}
+            >
+              错题本 {mistakeQuestionIds.size}
+            </button>
+            {practiceStats.totalAttempts > 0 && (
+              <button type="button" className="learning-reset" onClick={resetPracticeStats}>
+                清空学习记录
+              </button>
+            )}
+          </div>
+        </section>
+
         <div className="practice-workspace">
           <aside className="question-list" aria-label="题目列表">
             <div className="question-list-title">
-              <span>题库</span>
-              <strong>{practiceQuestions.length} 题</strong>
+              <span>{practiceView === "mistakes" ? "错题本" : "题库"}</span>
+              <strong>{visiblePracticeQuestions.length} 题</strong>
             </div>
 
-            <div className="topic-filter" role="tablist" aria-label="按题型筛选">
-              {groupedPracticeQuestions.map(([topic, questions]) => (
-                <button
-                  key={topic}
-                  type="button"
-                  role="tab"
-                  className={topic === activePracticeTopic ? "topic-filter-button is-active" : "topic-filter-button"}
-                  aria-selected={topic === activePracticeTopic}
-                  onClick={() => selectPracticeTopic(topic)}
-                >
-                  <span>{topic}</span>
-                  <strong>{questions.length}</strong>
-                </button>
-              ))}
-            </div>
+            {practiceView === "all" && (
+              <div className="topic-filter" role="tablist" aria-label="按题型筛选">
+                {groupedPracticeQuestions.map(([topic, questions]) => (
+                  <button
+                    key={topic}
+                    type="button"
+                    role="tab"
+                    className={topic === activePracticeTopic ? "topic-filter-button is-active" : "topic-filter-button"}
+                    aria-selected={topic === activePracticeTopic}
+                    onClick={() => selectPracticeTopic(topic)}
+                  >
+                    <span>{topic}</span>
+                    <strong>{questions.length}</strong>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="question-group compact">
-              <h3>{activePracticeTopic || "全部题目"}</h3>
-              <ul>
-                {visiblePracticeQuestions.map((question, index) => (
+              <h3>{practiceView === "mistakes" ? "曾经答错的题" : activePracticeTopic || "全部题目"}</h3>
+              {visiblePracticeQuestions.length > 0 ? (
+                <ul>
+                  {visiblePracticeQuestions.map((question, index) => {
+                    const record = practiceStats.records[question.id];
+                    return (
                   <li key={question.id}>
                     <button
                       type="button"
@@ -888,16 +1082,28 @@ function App() {
                       onClick={() => selectPracticeQuestion(question.id)}
                     >
                       <span>{question.type === "single_choice" ? "选择" : "填空"}</span>
+                      {record && (
+                        <i className={record.lastCorrect ? "question-status is-correct" : "question-status is-pending"}>
+                          {record.everWrong && record.lastCorrect ? "已订正" : record.lastCorrect ? "已完成" : "待订正"}
+                        </i>
+                      )}
                       <strong>{getQuestionNavLabel(question, index)}</strong>
                       <small>{question.stem}</small>
                     </button>
                   </li>
-                ))}
-              </ul>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="mistake-empty">
+                  <strong>错题本还是空的</strong>
+                  <p>先完成几道题，答错的题会自动收进这里。</p>
+                </div>
+              )}
             </div>
           </aside>
 
-          {selectedQuestion && (
+          {selectedQuestion && (practiceView === "all" || mistakeQuestionIds.has(selectedQuestion.id)) && (
             <div className="practice-study-grid">
               <section className="practice-card" aria-labelledby="current-question-title">
                 <div className="practice-card-header">

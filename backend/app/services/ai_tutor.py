@@ -144,7 +144,10 @@ def explain_mistake(payload: AiExplainMistakeRequest) -> AiExplainMistakeRespons
 
 def fallback_ask_response() -> AiAskResponse:
     return AiAskResponse(
-        answer="AI 小老师暂时不能连上在线讲解，但你仍然可以先看标准解析。做浮力题时，先判断题型，再找已知量，最后套对应公式。",
+        answer=(
+            "**先判断题型：** 做浮力题时，先找已知量，再选择公式。"
+            "例如阿基米德原理是 $F_{\\text{浮}} = \\rho_{\\text{液}} g V_{\\text{排}}$。"
+        ),
         scope="基础讲解",
         next_prompt="可以问：这道题应该先找哪些已知量？",
     )
@@ -158,7 +161,9 @@ def _options_text(payload: AiAskRequest) -> str:
 
 def _ask_messages(payload: AiAskRequest, stream: bool = False) -> list[dict[str, str]]:
     output_rule = (
-        "不要输出 JSON，不要加字段名，不要加 Markdown 标题，直接输出给学生看的讲解文本。"
+        "不要输出 JSON，不要加字段名。使用简洁 Markdown 分段，可以使用粗体和列表，但不要使用一级或二级标题。"
+        "所有物理量、公式和单位都使用 LaTeX：行内公式必须写在 $...$ 中，独立公式必须写在 $$...$$ 中。"
+        "不要使用 \\(...\\) 或 \\[...\\] 作为数学分隔符。"
         if stream
         else "输出 JSON，字段只能包含 answer、scope、next_prompt。"
     )
@@ -212,6 +217,7 @@ def _ask_messages(payload: AiAskRequest, stream: bool = False) -> list[dict[str,
                 "如果当前题是选择题，必须阅读题目选项原文；学生选错时，要针对学生选中的具体选项文字进行反驳。"
                 "不得把选项内容改写成题目中没有出现过的说法。"
                 "控制在 5 到 8 句话内，每句话短一点，适合初中生阅读。"
+                "公式中的中文下标可使用 \\text{}，单位优先使用 \\mathrm{}，并保证 LaTeX 括号成对闭合。"
                 f"{output_rule}"
             ),
         },
@@ -231,8 +237,9 @@ def _fallback_stream(payload: AiAskRequest | None = None) -> Iterator[str]:
     text = fallback.answer
     if payload and payload.current_question:
         text = (
-            "AI 小老师先用基础讲解告诉你：先看这道题属于哪类物理问题，再把题干里的已知量圈出来。"
-            "如果是浮力题，优先比较 F浮 和 G物；如果要计算，就看题目给的是密度体积、测力计示数，还是漂浮条件。"
+            "**先判断题型：** 先把题干里的已知量圈出来。\n\n"
+            "如果是浮力题，优先比较 $F_{\\text{浮}}$ 和 $G_{\\text{物}}$；"
+            "如果要计算，再判断使用 $F_{\\text{浮}} = \\rho_{\\text{液}} g V_{\\text{排}}$、称重法还是漂浮平衡。"
         )
     for chunk in [text[i : i + 24] for i in range(0, len(text), 24)]:
         yield _sse("chunk", {"delta": chunk})
@@ -267,6 +274,7 @@ def ask_physics_question(payload: AiAskRequest) -> AiAskResponse:
 
 
 def stream_physics_question(payload: AiAskRequest) -> Iterator[str]:
+    yield _sse("status", {"scope": "正在组织思路"})
     enabled = os.getenv("ENABLE_AI_TUTOR", "true").lower() == "true"
     api_key = os.getenv("OPENAI_API_KEY")
     if not enabled or not api_key:

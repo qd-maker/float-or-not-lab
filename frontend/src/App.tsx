@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   BuoyancyResult,
   FormulaMode,
@@ -18,6 +18,9 @@ import {
 } from "./lib/practice";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const MathMarkdown = lazy(() =>
+  import("./components/MathMarkdown").then((module) => ({ default: module.MathMarkdown }))
+);
 
 const formulaModeLabels: Record<FormulaMode, { title: string; subtitle: string; when: string }> = {
   archimedes: { title: "阿基米德原理", subtitle: "F浮 = ρ液 g V排", when: "看到液体密度、排开体积时用" },
@@ -1266,11 +1269,15 @@ function App() {
 
                 {aiAskResult && (
                   <section className="ai-answer-card" aria-live="polite" aria-busy={aiAskLoading}>
-                    <div>
+                    <div className="ai-answer-meta">
                       <span>知识范围</span>
-                      <strong>{aiAskResult.scope}</strong>
+                      <strong>{aiAskLoading ? "正在流式回答" : aiAskResult.scope}</strong>
                     </div>
-                    <p>{aiAskResult.answer || "AI 小老师正在组织语言..."}</p>
+                    <Suspense fallback={<p className="math-loading">正在准备公式排版...</p>}>
+                      <MathMarkdown>
+                        {aiAskResult.answer || "AI 小老师正在组织语言..."}
+                      </MathMarkdown>
+                    </Suspense>
                     {!aiAskLoading && aiAskResult.next_prompt && (
                       <button className="text-action" type="button" onClick={() => setAiQuestion(aiAskResult.next_prompt)}>
                         继续追问：{aiAskResult.next_prompt}

@@ -388,12 +388,24 @@ POST /api/ai/ask/stream
 - 有可用 AI key 时，后端调用 OpenAI-compatible Chat Completions `stream=true`。
 - 没有 API Key、关闭 AI 或中转站不可用时，仍按 SSE 格式返回基础讲解兜底解释。
 - Prompt 继续约束为只回答物理题目、物理概念、物理计算和物理实验现象相关内容。
+- `chunk.delta` 可以包含 Markdown 和 LaTeX 数学公式；推荐使用 `$...$` 表示行内公式，使用 `$$...$$` 表示独立公式。
+- 前端收到每个 `chunk` 后立即追加并重新渲染 Markdown/KaTeX，不等待 `done` 事件才显示完整答案。
+- 为兼容部分模型输出，前端也会把 `\\(...\\)` 和 `\\[...\\]` 转换为标准数学分隔符。
 
 ### SSE Event：chunk
 
 ```text
 event: chunk
-data: {"delta":"这题先判断状态：木块是漂浮。"}
+data: {"delta":"这题先判断状态：木块是漂浮。\n\n浮力公式为 $F_{\\text{浮}} = G_{\\text{物}}$。"}
+```
+
+### SSE Event：status
+
+连接建立后立即发送，用于告诉前端流已经开始；模型文字随后通过多个 `chunk` 到达。
+
+```text
+event: status
+data: {"scope":"正在组织思路"}
 ```
 
 ### SSE Event：done

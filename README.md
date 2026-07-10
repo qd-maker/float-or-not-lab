@@ -22,6 +22,10 @@
 
 ![学习数据与错题订正](docs/images/float-lab-learning-dashboard.png)
 
+### 5. AI 小老师数学公式排版
+
+![AI 小老师数学公式排版](docs/images/float-lab-ai-math.png)
+
 ## 项目能做什么
 
 ### 概念实验
@@ -95,6 +99,8 @@ AI 小老师用于补充讲解，不替代标准答案。
 - 支持直接输入物理问题
 - 提供快捷追问按钮
 - 支持 Server-Sent Events 流式输出
+- 支持 Markdown + KaTeX 数学公式排版，兼容 `$...$` 和模型常见的 `\\(...\\)` 输出
+- 数学渲染组件按需加载，不增加首页主包体积
 - 没有 API Key 时自动降级为本地模板解释
 
 Prompt 约束：只回答物理题目、物理概念、物理计算和物理实验现象相关内容。

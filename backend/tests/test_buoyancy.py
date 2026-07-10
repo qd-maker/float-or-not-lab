@@ -213,8 +213,11 @@ def test_ai_ask_stream_fallback(monkeypatch):
     )
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
-    assert "event: chunk" in response.text
+    assert "event: status" in response.text
+    assert response.text.count("event: chunk") >= 2
     assert "event: done" in response.text
+    assert "$F_{" in response.text
+    assert response.headers["x-accel-buffering"] == "no"
 
 
 def test_archimedes_mistake_missing_g():

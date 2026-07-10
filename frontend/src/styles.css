@@ -1367,20 +1367,20 @@ textarea {
   background: oklch(0.99 0.006 220);
 }
 
-.ai-answer-card div {
+.ai-answer-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.ai-answer-card span {
+.ai-answer-meta span {
   color: oklch(0.42 0.035 240);
   font-size: 0.88rem;
   font-weight: 850;
 }
 
-.ai-answer-card strong {
+.ai-answer-meta strong {
   border-radius: 999px;
   padding: 5px 9px;
   background: oklch(0.92 0.04 205);
@@ -1388,12 +1388,58 @@ textarea {
   font-size: 0.78rem;
 }
 
-.ai-answer-card p {
-  margin: 0;
+.math-markdown {
+  min-width: 0;
   color: oklch(0.29 0.035 240);
   font-weight: 720;
   line-height: 1.72;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.math-loading {
+  margin: 0;
+  color: oklch(0.46 0.025 240);
+  line-height: 1.72;
+}
+
+.math-markdown p {
+  margin: 0;
+}
+
+.math-markdown p + p,
+.math-markdown ul + p,
+.math-markdown ol + p,
+.math-markdown p + ul,
+.math-markdown p + ol {
+  margin-top: 0.85em;
+}
+
+.math-markdown ul,
+.math-markdown ol {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+  padding-left: 1.25rem;
+}
+
+.math-markdown strong {
+  color: oklch(0.22 0.055 240);
+  font-weight: 900;
+}
+
+.math-markdown .katex {
+  color: oklch(0.23 0.055 235);
+  font-size: 1.03em;
+}
+
+.math-markdown .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 10px 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: oklch(0.965 0.015 225);
+  scrollbar-width: thin;
 }
 
 .text-action {
@@ -1797,7 +1843,7 @@ body {
   box-shadow: none;
 }
 
-.ai-answer-card[aria-busy="true"] p::after {
+.ai-answer-card[aria-busy="true"] .math-markdown::after {
   content: "▋";
   display: inline-block;
   margin-left: 2px;

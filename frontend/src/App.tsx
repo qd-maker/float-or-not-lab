@@ -135,7 +135,6 @@ function App() {
   const [objectWeight, setObjectWeight] = useState(8);
   const [displacedWaterWeight, setDisplacedWaterWeight] = useState(10);
   const [result, setResult] = useState<BuoyancyResult>(() => localCalculate(8, 10));
-  const [source, setSource] = useState("准备好了");
   const [isLoading, setIsLoading] = useState(false);
 
   const [formulaMode, setFormulaMode] = useState<FormulaMode>("archimedes");
@@ -157,7 +156,6 @@ function App() {
       floatingObjectWeight: 8,
     })
   );
-  const [formulaSource, setFormulaSource] = useState("准备好了");
   const [formulaLoading, setFormulaLoading] = useState(false);
   const [formulaError, setFormulaError] = useState("");
 
@@ -166,7 +164,6 @@ function App() {
   const [selectedQuestionId, setSelectedQuestionId] = useState(fallbackPracticeQuestions[0]?.id ?? "");
   const [practiceAnswer, setPracticeAnswer] = useState("");
   const [practiceResult, setPracticeResult] = useState<PracticeSubmitResult | null>(null);
-  const [practiceSource, setPracticeSource] = useState("题库已准备好");
   const [practiceLoading, setPracticeLoading] = useState(false);
   const [practiceError, setPracticeError] = useState("");
   const [practiceStats, setPracticeStats] = useState<PracticeStats>(() => loadPracticeStats());
@@ -313,11 +310,8 @@ function App() {
         setPracticeQuestions(data.questions);
         setActivePracticeTopic(data.questions[0].topic);
         setSelectedQuestionId(data.questions[0].id);
-        setPracticeSource("题库已准备好");
       } catch {
-        if (!cancelled) {
-          setPracticeSource("离线题库可用");
-        }
+        // 后端不可用时继续使用内置题库。
       }
     }
 
@@ -337,7 +331,6 @@ function App() {
     setFormulaValues(nextValues);
     setFormulaError("");
     setFormulaResult(localCalculateFormula(formulaMode, nextValues));
-    setFormulaSource("例题已填好");
   }
 
   function buildFormulaPayload() {
@@ -385,10 +378,8 @@ function App() {
 
       const data = (await response.json()) as BuoyancyResult;
       setResult(data);
-      setSource("判断完成");
     } catch {
       setResult(localCalculate(nextObjectWeight, nextDisplacedWaterWeight));
-      setSource("判断完成");
     } finally {
       setIsLoading(false);
     }
@@ -417,10 +408,8 @@ function App() {
 
       const data = (await response.json()) as FormulaResult;
       setFormulaResult(data);
-      setFormulaSource("计算完成");
     } catch {
       setFormulaResult(localCalculateFormula(formulaMode, formulaValues));
-      setFormulaSource("计算完成");
     } finally {
       setFormulaLoading(false);
     }
@@ -568,12 +557,10 @@ function App() {
 
       const data = (await response.json()) as PracticeSubmitResult;
       setPracticeResult(data);
-      setPracticeSource("已完成判题");
       recordPracticeResult(data);
     } catch {
       const localResult = localSubmitPractice(selectedQuestion, trimmedAnswer);
       setPracticeResult(localResult);
-      setPracticeSource("已完成判题");
       recordPracticeResult(localResult);
     } finally {
       setPracticeLoading(false);
@@ -759,7 +746,6 @@ function App() {
               <p>观察水槽</p>
               <h2>{result.state_text}</h2>
             </div>
-            <span className="source-pill">{source}</span>
           </div>
 
           <div className="tank-stage">
@@ -809,7 +795,6 @@ function App() {
               先选题型，再填数据，最后看分步解析。每一步都按初中物理题的写法来，不直接跳答案。
             </p>
           </div>
-          <span className="source-pill">{formulaSource}</span>
         </div>
 
         <ol className="learning-steps" aria-label="公式实验室操作步骤">
@@ -829,7 +814,6 @@ function App() {
                 setFormulaMode(mode);
                 setFormulaError("");
                 setFormulaResult(localCalculateFormula(mode, formulaValues));
-                setFormulaSource("已切换题型");
               }}
             >
               <span>{formulaModeLabels[mode].title}</span>
@@ -971,7 +955,6 @@ function App() {
               选一道题，先自己作答，再看正误、标准答案、分步解析和错因提示。答错时可以让 AI 小老师换一种说法讲一遍。
             </p>
           </div>
-          <span className="source-pill">{practiceSource}</span>
         </div>
 
         <section className="learning-dashboard" aria-labelledby="learning-dashboard-title">
@@ -1269,10 +1252,6 @@ function App() {
 
                 {aiAskResult && (
                   <section className="ai-answer-card" aria-live="polite" aria-busy={aiAskLoading}>
-                    <div className="ai-answer-meta">
-                      <span>知识范围</span>
-                      <strong>{aiAskLoading ? "正在流式回答" : aiAskResult.scope}</strong>
-                    </div>
                     <Suspense fallback={<p className="math-loading">正在准备公式排版...</p>}>
                       <MathMarkdown>
                         {aiAskResult.answer || "AI 小老师正在组织语言..."}

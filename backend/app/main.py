@@ -8,6 +8,8 @@ from app.config import load_env_files
 from app.schemas import (
     AiAskRequest,
     AiAskResponse,
+    AiVariantGenerateRequest,
+    AiVariantGenerateResponse,
     AiExplainMistakeRequest,
     AiExplainMistakeResponse,
     BuoyancyRequest,
@@ -17,11 +19,13 @@ from app.schemas import (
     PracticeQuestionsResponse,
     PracticeSubmitRequest,
     PracticeSubmitResponse,
+    VariantSubmitRequest,
 )
 from app.services.ai_tutor import ask_physics_question, explain_mistake, stream_physics_question
 from app.services.buoyancy import calculate_buoyancy
 from app.services.formula import calculate_formula
-from app.services.practice import list_questions, submit_answer
+from app.services.practice import list_questions, submit_answer, submit_variant_answer
+from app.services.variant import generate_variant
 
 
 load_env_files()
@@ -29,7 +33,7 @@ load_env_files()
 app = FastAPI(
     title="Float or Not Lab API",
     description="浮不浮实验室后端 API",
-    version="0.3.0",
+    version="0.6.0",
 )
 
 cors_origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
@@ -90,3 +94,13 @@ def ask_ai_tutor_stream_endpoint(payload: AiAskRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.post("/api/ai/generate-variant", response_model=AiVariantGenerateResponse)
+def generate_ai_variant_endpoint(payload: AiVariantGenerateRequest) -> AiVariantGenerateResponse:
+    return generate_variant(payload)
+
+
+@app.post("/api/practice/variant/submit", response_model=PracticeSubmitResponse)
+def submit_variant_answer_endpoint(payload: VariantSubmitRequest) -> PracticeSubmitResponse:
+    return submit_variant_answer(payload)

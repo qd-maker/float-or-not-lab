@@ -1434,13 +1434,21 @@ textarea {
 @media (max-width: 1100px) {
   .practice-workspace,
   .practice-study-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .question-list,
   .ai-tutor-panel {
     position: static;
     max-height: none;
+  }
+
+  .question-list,
+  .practice-study-grid,
+  .practice-card,
+  .ai-tutor-panel {
+    min-width: 0;
+    width: 100%;
   }
 
   .topic-filter {
@@ -2028,5 +2036,142 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .learning-progress span {
     transition: none;
+  }
+}
+
+/* Day6 targeted variant practice */
+.variant-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 18px;
+  margin-top: 14px;
+  padding: 16px;
+  background: oklch(0.955 0.035 155);
+}
+
+.variant-entry strong {
+  color: oklch(0.28 0.075 155);
+  font-size: 1rem;
+}
+
+.variant-entry p {
+  margin: 4px 0 0;
+  color: oklch(0.4 0.045 155);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.variant-entry .secondary-action {
+  flex: 0 0 auto;
+  background: oklch(0.99 0.006 155);
+}
+
+.variant-practice {
+  border-top: 1px solid oklch(0.85 0.035 155);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.variant-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.variant-heading span {
+  color: oklch(0.34 0.09 155);
+  font-size: 0.86rem;
+  font-weight: 950;
+}
+
+.variant-heading strong {
+  color: oklch(0.43 0.04 240);
+  font-size: 0.82rem;
+}
+
+.variant-focus {
+  margin: 0 0 12px;
+  color: oklch(0.42 0.04 240);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.variant-practice h4 {
+  margin: 0 0 14px;
+  color: oklch(0.23 0.035 240);
+  font-size: 1.18rem;
+  line-height: 1.45;
+}
+
+.variant-answer-field {
+  margin-bottom: 14px;
+}
+
+.variant-submit {
+  width: 100%;
+}
+
+.variant-result {
+  display: grid;
+  gap: 12px;
+  border-radius: 18px;
+  padding: 15px;
+  background: oklch(0.975 0.012 225);
+}
+
+.variant-result-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.variant-result-title strong {
+  font-size: 1.08rem;
+}
+
+.variant-result-title span {
+  color: oklch(0.43 0.035 240);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.variant-result-title.is-correct strong {
+  color: oklch(0.31 0.1 155);
+}
+
+.variant-result-title.is-wrong strong,
+.variant-result > p {
+  color: oklch(0.43 0.11 25);
+}
+
+.variant-result ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 1.25rem;
+  color: oklch(0.34 0.035 240);
+  line-height: 1.55;
+}
+
+.variant-result > p {
+  margin: 0;
+  font-weight: 780;
+  line-height: 1.55;
+}
+
+@media (max-width: 620px) {
+  .variant-entry,
+  .variant-result-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .variant-entry .secondary-action {
+    width: 100%;
   }
 }

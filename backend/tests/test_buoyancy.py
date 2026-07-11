@@ -286,3 +286,132 @@ def test_floating_mistake_thinks_buoyancy_greater_than_weight():
     data = response.json()
     assert data["correct"] is False
     assert "F浮 = G物" in data["mistake_tip"]
+
+
+def _practice_question(question_id: str) -> dict:
+    questions = client.get("/api/practice/questions").json()["questions"]
+    return next(question for question in questions if question["id"] == question_id)
+
+
+def test_generate_variant_fallback(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    original = _practice_question("q-archimedes-001")
+    response = client.post(
+        "/api/ai/generate-variant",
+        json={
+            "original_question": original,
+            "student_answer": "3",
+            "mistake_tip": "你漏乘了重力加速度 g。",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] == "fallback"
+    assert data["question"]["topic"] == original["topic"]
+    assert data["question"]["stem"] != original["stem"]
+    assert data["question"]["id"].startswith("variant-q-archimedes-001-")
+
+
+def test_submit_variant_answer_correct(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    generated = client.post(
+        "/api/ai/generate-variant",
+        json={
+            "original_question": _practice_question("q-weighing-001"),
+            "student_answer": "7",
+            "mistake_tip": "把测力计示数当成了浮力。",
+        },
+    ).json()
+    response = client.post(
+        "/api/practice/variant/submit",
+        json={"question": generated["question"], "student_answer": "6 N"},
+    )
+    assert response.status_code == 200
+    assert response.json()["correct"] is True
+    assert response.json()["correct_answer"] == "6 N"
+
+
+def test_submit_variant_answer_wrong(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    generated = client.post(
+        "/api/ai/generate-variant",
+        json={
+            "original_question": _practice_question("q-floating-001"),
+            "student_answer": "8",
+            "mistake_tip": "误以为漂浮时浮力大于重力。",
+        },
+    ).json()
+    response = client.post(
+        "/api/practice/variant/submit",
+        json={"question": generated["question"], "student_answer": "9"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["correct"] is False
+    assert data["mistake_tip"]
+
+
+def test_variant_question_rejects_invalid_choice_answer():
+    invalid_question = {
+        "id": "variant-invalid",
+        "type": "single_choice",
+        "topic": "判断浮沉",
+        "stem": "一个物体受到的浮力大于重力时，它会怎样运动？",
+        "options": [
+            {"id": "A", "text": "上浮"},
+            {"id": "B", "text": "悬浮"},
+            {"id": "C", "text": "下沉"},
+        ],
+        "answer": "D",
+        "unit": None,
+        "analysis_steps": ["比较浮力和重力。", "浮力大于重力时物体上浮。"],
+        "mistake_tip": "先比较两个力。",
+    }
+    response = client.post(
+        "/api/practice/variant/submit",
+        json={"question": invalid_question, "student_answer": "A"},
+    )
+    assert response.status_code == 422
+
+
+def test_all_variant_fallback_topics_are_valid(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    cases = [
+        ("q-float-001", "A", "没有比较两个力"),
+        ("q-weighing-001", "7", "把示数当浮力"),
+        ("q-archimedes-001", "3", "漏乘 g"),
+        ("q-floating-001", "8", "误以为浮力更大"),
+        ("q-life-001", "B", "没有判断液体密度变化"),
+    ]
+    for question_id, student_answer, mistake_tip in cases:
+        response = client.post(
+            "/api/ai/generate-variant",
+            json={
+                "original_question": _practice_question(question_id),
+                "student_answer": student_answer,
+                "mistake_tip": mistake_tip,
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["question"]["topic"] == _practice_question(question_id)["topic"]
+
+
+def test_generate_variant_ai_failure_uses_fallback(monkeypatch):
+    from app.services import variant as variant_service
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    def fail_client(_: str):
+        raise RuntimeError("upstream unavailable")
+
+    monkeypatch.setattr(variant_service, "_build_client", fail_client)
+    response = client.post(
+        "/api/ai/generate-variant",
+        json={
+            "original_question": _practice_question("q-archimedes-001"),
+            "student_answer": "3",
+            "mistake_tip": "漏乘 g",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["source"] == "fallback"

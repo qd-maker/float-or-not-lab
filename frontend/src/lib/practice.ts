@@ -38,6 +38,12 @@ export interface AiAskResult {
   next_prompt: string;
 }
 
+export interface AiVariantGenerateResult {
+  question: PracticeQuestion;
+  focus: string;
+  source: "ai" | "fallback";
+}
+
 export const fallbackPracticeQuestions: PracticeQuestion[] = [
   {
     id: "q-float-001",
@@ -285,5 +291,22 @@ export function localAiAskResult(): AiAskResult {
     answer: "AI 小老师暂时不能连上在线讲解，但你仍然可以先看标准解析。做浮力题时，先判断题型，再找已知量，最后套对应公式。",
     scope: "基础讲解",
     next_prompt: "可以问：这道题应该先找哪些已知量？",
+  };
+}
+
+export function localVariantQuestion(originalQuestion: PracticeQuestion): AiVariantGenerateResult {
+  const candidate =
+    fallbackPracticeQuestions.find(
+      (question) => question.topic === originalQuestion.topic && question.id !== originalQuestion.id
+    ) ?? fallbackPracticeQuestions[0];
+  return {
+    question: {
+      ...candidate,
+      id: `variant-${candidate.id}-${Date.now()}`,
+      options: candidate.options.map((option) => ({ ...option })),
+      analysis_steps: [...candidate.analysis_steps],
+    },
+    focus: `再练一道「${originalQuestion.topic}」题，把刚才的易错点真正改过来。`,
+    source: "fallback",
   };
 }

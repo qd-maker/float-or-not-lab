@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { VariantPractice } from "./components/VariantPractice";
 import {
   BuoyancyResult,
   FormulaMode,
@@ -33,6 +34,8 @@ const PRACTICE_STATS_STORAGE_KEY = "float-lab-practice-stats";
 
 interface PracticeRecord {
   questionId: string;
+  topic: string;
+  isVariant: boolean;
   attempts: number;
   correctAttempts: number;
   lastCorrect: boolean;
@@ -91,11 +94,22 @@ function loadPracticeStats(): PracticeStats {
     };
 
     if (parsed.version === 2 && parsed.records && typeof parsed.records === "object") {
+      const records = Object.fromEntries(
+        Object.entries(parsed.records).map(([questionId, record]) => [
+          questionId,
+          {
+            ...record,
+            questionId,
+            topic: typeof record.topic === "string" ? record.topic : "",
+            isVariant: typeof record.isVariant === "boolean" ? record.isVariant : questionId.startsWith("variant-"),
+          },
+        ])
+      );
       return {
         version: 2,
         totalAttempts: Number.isFinite(parsed.totalAttempts) ? Number(parsed.totalAttempts) : 0,
         correctAttempts: Number.isFinite(parsed.correctAttempts) ? Number(parsed.correctAttempts) : 0,
-        records: parsed.records,
+        records,
       };
     }
 
@@ -104,6 +118,8 @@ function loadPracticeStats(): PracticeStats {
         questionId,
         {
           questionId,
+          topic: "",
+          isVariant: false,
           attempts: 1,
           correctAttempts: 0,
           lastCorrect: false,
@@ -201,7 +217,7 @@ function App() {
     () =>
       new Set(
         Object.values(practiceStats.records)
-          .filter((record) => record.everWrong)
+          .filter((record) => record.everWrong && !record.isVariant)
           .map((record) => record.questionId)
       ),
     [practiceStats.records]
@@ -211,7 +227,7 @@ function App() {
     () =>
       new Set(
         Object.values(practiceStats.records)
-          .filter((record) => record.everWrong && !record.lastCorrect)
+          .filter((record) => record.everWrong && !record.lastCorrect && !record.isVariant)
           .map((record) => record.questionId)
       ),
     [practiceStats.records]
@@ -229,17 +245,22 @@ function App() {
 
   const learningSummary = useMemo(() => {
     const records = Object.values(practiceStats.records);
+    const coreRecords = records.filter((record) => !record.isVariant);
+    const variantAttempts = records
+      .filter((record) => record.isVariant)
+      .reduce((total, record) => total + record.attempts, 0);
     const topicMap = new Map<string, { attempts: number; correct: number }>();
 
     for (const record of records) {
       const question = practiceQuestions.find((item) => item.id === record.questionId);
-      if (!question) {
+      const topic = record.topic || question?.topic;
+      if (!topic) {
         continue;
       }
-      const current = topicMap.get(question.topic) ?? { attempts: 0, correct: 0 };
+      const current = topicMap.get(topic) ?? { attempts: 0, correct: 0 };
       current.attempts += record.attempts;
       current.correct += record.correctAttempts;
-      topicMap.set(question.topic, current);
+      topicMap.set(topic, current);
     }
 
     const topics = Array.from(topicMap.entries()).map(([topic, value]) => ({
@@ -251,12 +272,13 @@ function App() {
     const strongest = [...topics].sort((left, right) => right.accuracy - left.accuracy || right.attempts - left.attempts)[0];
 
     return {
-      completed: records.length,
+      completed: coreRecords.length,
+      variantAttempts,
       pending: pendingCorrectionIds.size,
       weakest: weakest?.topic ?? "等待练习",
       strongest: strongest?.topic ?? "等待练习",
       topicCount: topics.length,
-      progress: practiceQuestions.length === 0 ? 0 : Math.round((records.length / practiceQuestions.length) * 100),
+      progress: practiceQuestions.length === 0 ? 0 : Math.round((coreRecords.length / practiceQuestions.length) * 100),
     };
   }, [pendingCorrectionIds, practiceQuestions, practiceStats.records]);
 
@@ -486,11 +508,13 @@ function App() {
     }
   }
 
-  function recordPracticeResult(nextResult: PracticeSubmitResult) {
+  function recordPracticeResult(nextResult: PracticeSubmitResult, question: PracticeQuestion, isVariant = false) {
     setPracticeStats((current) => {
       const previous = current.records[nextResult.question_id];
       const nextRecord: PracticeRecord = {
         questionId: nextResult.question_id,
+        topic: question.topic,
+        isVariant,
         attempts: (previous?.attempts ?? 0) + 1,
         correctAttempts: (previous?.correctAttempts ?? 0) + (nextResult.correct ? 1 : 0),
         lastCorrect: nextResult.correct,
@@ -557,11 +581,11 @@ function App() {
 
       const data = (await response.json()) as PracticeSubmitResult;
       setPracticeResult(data);
-      recordPracticeResult(data);
+      recordPracticeResult(data, selectedQuestion);
     } catch {
       const localResult = localSubmitPractice(selectedQuestion, trimmedAnswer);
       setPracticeResult(localResult);
-      recordPracticeResult(localResult);
+      recordPracticeResult(localResult, selectedQuestion);
     } finally {
       setPracticeLoading(false);
     }
@@ -985,7 +1009,7 @@ function App() {
             <div>
               <span>提交次数</span>
               <strong>{practiceStats.totalAttempts}</strong>
-              <small>包含重新练习</small>
+              <small>{learningSummary.variantAttempts > 0 ? `含强化 ${learningSummary.variantAttempts} 次` : "包含重新练习"}</small>
             </div>
             <div>
               <span>正确率</span>
@@ -1181,6 +1205,18 @@ function App() {
                           {aiLoading || aiAskLoading ? "AI 小老师思考中..." : "让 AI 针对我的错误讲一遍"}
                         </button>
                       </div>
+                    )}
+
+                    {!practiceResult.correct && (
+                      <VariantPractice
+                        key={`${selectedQuestion.id}-${practiceResult.student_answer}`}
+                        apiBaseUrl={API_BASE_URL}
+                        originalQuestion={selectedQuestion}
+                        originalResult={practiceResult}
+                        onResult={(variantResult, variantQuestion) =>
+                          recordPracticeResult(variantResult, variantQuestion, true)
+                        }
+                      />
                     )}
 
                     <button className="primary-action next-practice-action" type="button" onClick={selectNextPracticeQuestion}>

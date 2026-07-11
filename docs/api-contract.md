@@ -415,6 +415,105 @@ event: done
 data: {"scope":"AI 小老师","next_prompt":"还能问：这道题还有什么易错点？"}
 ```
 
+## 7. AI 针对性变式题接口，Day6
+
+```http
+POST /api/ai/generate-variant
+```
+
+根据原题、学生答案和已经确认的错因生成一道同知识点变式题。AI 只负责生成题目内容，返回结果必须通过 Pydantic 和业务规则校验；AI 不可用、输出格式错误、题型超纲或答案结构不合法时，自动返回本地变式题。
+
+### Request Body
+
+```json
+{
+  "original_question": {
+    "id": "q-archimedes-001",
+    "type": "fill_blank",
+    "topic": "阿基米德公式",
+    "stem": "物体排开水的体积为 0.003 m³，水的密度取 1000 kg/m³，g 取 10 N/kg，浮力是多少？",
+    "options": [],
+    "answer": "30",
+    "unit": "N",
+    "analysis_steps": ["使用阿基米德公式。", "F浮 = ρ液 g V排。", "F浮 = 30 N。"],
+    "mistake_tip": "代入时不要漏乘 g。"
+  },
+  "student_answer": "3",
+  "mistake_tip": "你漏乘了重力加速度 g。"
+}
+```
+
+### Response 200
+
+```json
+{
+  "question": {
+    "id": "variant-q-archimedes-001-a1b2c3d4",
+    "type": "fill_blank",
+    "topic": "阿基米德公式",
+    "stem": "物体排开水的体积为 0.002 m³，水的密度取 1000 kg/m³，g 取 10 N/kg，浮力是多少？",
+    "options": [],
+    "answer": "20",
+    "unit": "N",
+    "analysis_steps": ["写出 F浮 = ρ液 g V排。", "代入 1000、10 和 0.002。", "F浮 = 20 N。"],
+    "mistake_tip": "检查 ρ液、g、V排 是否都已经代入。"
+  },
+  "focus": "练习完整写出阿基米德公式，避免漏乘 g。",
+  "source": "ai"
+}
+```
+
+### 生成校验规则
+
+- `topic` 必须与原题一致，且只能是内置五类浮力题型之一。
+- 题干不能与原题完全相同。
+- 选择题必须有 3 到 4 个不重复选项，且答案必须对应其中一个选项 ID。
+- 填空题不能携带选项，答案必须是可计算的数值。
+- 分步解析必须有 2 到 5 步。
+- AI 失败不返回 500，自动以 `source=fallback` 返回本地题。
+
+## 8. 变式题判题接口，Day6
+
+```http
+POST /api/practice/variant/submit
+```
+
+请求中携带已经通过校验的变式题和学生答案。判题使用确定性代码，不再次调用 AI。
+
+### Request Body
+
+```json
+{
+  "question": {
+    "id": "variant-q-archimedes-001-a1b2c3d4",
+    "type": "fill_blank",
+    "topic": "阿基米德公式",
+    "stem": "物体排开水的体积为 0.002 m³，水的密度取 1000 kg/m³，g 取 10 N/kg，浮力是多少？",
+    "options": [],
+    "answer": "20",
+    "unit": "N",
+    "analysis_steps": ["写出 F浮 = ρ液 g V排。", "代入 1000、10 和 0.002。", "F浮 = 20 N。"],
+    "mistake_tip": "检查 ρ液、g、V排 是否都已经代入。"
+  },
+  "student_answer": "20"
+}
+```
+
+### Response 200
+
+响应结构与 `POST /api/practice/submit` 相同：
+
+```json
+{
+  "question_id": "variant-q-archimedes-001-a1b2c3d4",
+  "correct": true,
+  "correct_answer": "20 N",
+  "student_answer": "20",
+  "analysis_steps": ["写出 F浮 = ρ液 g V排。", "代入 1000、10 和 0.002。", "F浮 = 20 N。"],
+  "mistake_tip": ""
+}
+```
+
 ## Error Responses
 
 ### 404 Not Found

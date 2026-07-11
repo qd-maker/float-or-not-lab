@@ -7,6 +7,7 @@ from app.schemas import (
     PracticeSubmitResponse,
     QuestionOption,
     QuestionType,
+    VariantSubmitRequest,
 )
 
 
@@ -276,13 +277,12 @@ def _build_mistake_tip(question: PracticeQuestion, student_answer: str, normaliz
     return question.mistake_tip
 
 
-def submit_answer(payload: PracticeSubmitRequest) -> PracticeSubmitResponse:
-    question = get_question(payload.question_id)
-    normalized_student = _normalize_answer(payload.student_answer)
+def _judge_question(question: PracticeQuestion, student_answer: str) -> PracticeSubmitResponse:
+    normalized_student = _normalize_answer(student_answer)
     normalized_correct = _normalize_answer(question.answer)
 
     if question.type == QuestionType.FILL_BLANK:
-        correct = _is_numeric_match(payload.student_answer, question.answer)
+        correct = _is_numeric_match(student_answer, question.answer)
     else:
         option_text_match = any(
             option.id.upper() == normalized_correct and _normalize_answer(option.text) == normalized_student
@@ -295,7 +295,15 @@ def submit_answer(payload: PracticeSubmitRequest) -> PracticeSubmitResponse:
         question_id=question.id,
         correct=correct,
         correct_answer=correct_answer,
-        student_answer=payload.student_answer,
+        student_answer=student_answer,
         analysis_steps=question.analysis_steps,
-        mistake_tip="" if correct else _build_mistake_tip(question, payload.student_answer, normalized_student),
+        mistake_tip="" if correct else _build_mistake_tip(question, student_answer, normalized_student),
     )
+
+
+def submit_answer(payload: PracticeSubmitRequest) -> PracticeSubmitResponse:
+    return _judge_question(get_question(payload.question_id), payload.student_answer)
+
+
+def submit_variant_answer(payload: VariantSubmitRequest) -> PracticeSubmitResponse:
+    return _judge_question(payload.question, payload.student_answer)

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { VariantPractice } from "./components/VariantPractice";
 import {
   BuoyancyResult,
@@ -189,6 +189,7 @@ function App() {
   const [aiAskResult, setAiAskResult] = useState<AiAskResult | null>(null);
   const [aiAskLoading, setAiAskLoading] = useState(false);
   const [aiAskError, setAiAskError] = useState("");
+  const aiTutorPanelRef = useRef<HTMLElement>(null);
 
   const forceScale = useMemo(() => {
     const maxForce = Math.max(objectWeight, displacedWaterWeight, 1);
@@ -702,6 +703,12 @@ function App() {
     }
     setAiLoading(true);
     const message = `我这道题答成了 ${practiceResult.student_answer}，标准答案是 ${practiceResult.correct_answer}。请结合题目给我讲清楚为什么错，以及下次怎么判断。`;
+    requestAnimationFrame(() => {
+      aiTutorPanelRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
+      });
+    });
     await askPhysicsTutor(message);
     setAiLoading(false);
   }
@@ -799,14 +806,22 @@ function App() {
         </section>
 
         <section className="explain-panel">
-          <p className="eyebrow">实验结论</p>
-          <h2>{result.explanation}</h2>
-          <p>{result.student_tip}</p>
-          <p className="concept-note">这里比较的是物体刚完全浸没时的最大浮力；如果物体最终漂浮，浮力会重新等于物体重力。</p>
-          <div className="formula-strip">
-            <span>浮力大小</span>
-            <strong>≈</strong>
-            <span>物体完全浸没时排开水的重量</span>
+          <div className="explain-summary">
+            <p className="eyebrow">实验结论</p>
+            <h2>{result.explanation}</h2>
+            <p className="explain-tip">{result.student_tip}</p>
+          </div>
+
+          <div className="explain-detail">
+            <div className="concept-note">
+              <strong>判断关键</strong>
+              <span>先比较完全浸没时的最大浮力和物体重力，再判断它接下来会上浮、悬浮还是下沉。</span>
+            </div>
+            <div className="formula-strip">
+              <span>浮力大小</span>
+              <strong>≈</strong>
+              <span>完全浸没时排开水的重量</span>
+            </div>
           </div>
         </section>
       </section>
@@ -1226,65 +1241,71 @@ function App() {
                 )}
               </section>
 
-              <aside className="ai-tutor-panel" aria-labelledby="ai-free-ask-title">
-                <div className="ai-tutor-heading">
-                  <span className="topic-pill">AI 小老师</span>
-                  <h3 id="ai-free-ask-title">问一道物理题</h3>
-                  <p>可以追问当前题，也可以问其它物理题。系统提示已限制为只回答物理学习相关内容。</p>
-                </div>
-
-                <div className="quick-prompt-group" aria-label="AI 小老师快捷提问">
-                  {dynamicAiPrompts.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      className="quick-prompt"
-                      onClick={() => askPhysicsTutor(prompt)}
-                      disabled={aiAskLoading}
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-
-                <label className="field ai-question-field" htmlFor="ai-question-input">
-                  <span>你的问题</span>
-                  <div className="ai-input-shell">
-                    <textarea
-                      id="ai-question-input"
-                      rows={4}
-                      placeholder="输入你的疑问，按 Enter 发送..."
-                      value={aiQuestion}
-                      aria-describedby={aiAskError ? "ai-question-error" : undefined}
-                      aria-invalid={Boolean(aiAskError)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          askPhysicsTutor();
-                        }
-                      }}
-                      onChange={(event) => {
-                        setAiQuestion(event.target.value);
-                        setAiAskError("");
-                      }}
-                    />
-                    <button
-                      className="ai-send-button"
-                      type="button"
-                      aria-label="发送问题给 AI 小老师"
-                      onClick={() => askPhysicsTutor()}
-                      disabled={aiAskLoading}
-                    >
-                      {aiAskLoading ? <span className="loading-dot" aria-hidden="true" /> : "↗"}
-                    </button>
+              <aside
+                ref={aiTutorPanelRef}
+                className={aiAskResult ? "ai-tutor-panel has-answer" : "ai-tutor-panel"}
+                aria-labelledby="ai-free-ask-title"
+              >
+                <div className="ai-tutor-controls">
+                  <div className="ai-tutor-heading">
+                    <span className="topic-pill">AI 小老师</span>
+                    <h3 id="ai-free-ask-title">问一道物理题</h3>
+                    <p>可以追问当前题，也可以问其它物理题。我会围绕物理概念、计算和实验现象来回答。</p>
                   </div>
-                </label>
 
-                {aiAskError && (
-                  <p id="ai-question-error" className="form-error" role="alert">
-                    {aiAskError}
-                  </p>
-                )}
+                  <div className="quick-prompt-group" aria-label="AI 小老师快捷提问">
+                    {dynamicAiPrompts.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        className="quick-prompt"
+                        onClick={() => askPhysicsTutor(prompt)}
+                        disabled={aiAskLoading}
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="field ai-question-field" htmlFor="ai-question-input">
+                    <span>你的问题</span>
+                    <div className="ai-input-shell">
+                      <textarea
+                        id="ai-question-input"
+                        rows={4}
+                        placeholder="输入你的疑问，按 Enter 发送..."
+                        value={aiQuestion}
+                        aria-describedby={aiAskError ? "ai-question-error" : undefined}
+                        aria-invalid={Boolean(aiAskError)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            askPhysicsTutor();
+                          }
+                        }}
+                        onChange={(event) => {
+                          setAiQuestion(event.target.value);
+                          setAiAskError("");
+                        }}
+                      />
+                      <button
+                        className="ai-send-button"
+                        type="button"
+                        aria-label="发送问题给 AI 小老师"
+                        onClick={() => askPhysicsTutor()}
+                        disabled={aiAskLoading}
+                      >
+                        {aiAskLoading ? <span className="loading-dot" aria-hidden="true" /> : "↗"}
+                      </button>
+                    </div>
+                  </label>
+
+                  {aiAskError && (
+                    <p id="ai-question-error" className="form-error" role="alert">
+                      {aiAskError}
+                    </p>
+                  )}
+                </div>
 
                 {aiAskResult && (
                   <section className="ai-answer-card" aria-live="polite" aria-busy={aiAskLoading}>

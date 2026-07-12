@@ -4,6 +4,16 @@
 
 > 核心目标：让学生明白物体能不能浮起来，不是只看它重不重，而是看浮力能不能托住它。
 
+## 在线体验
+
+- **在线 Demo：** [https://float.heyqi.xyz/](https://float.heyqi.xyz/)
+- **GitHub 仓库：** [qd-maker/float-or-not-lab](https://github.com/qd-maker/float-or-not-lab)
+- **最终提交清单：** [docs/final-submission.md](docs/final-submission.md)
+- **七日每日小结：** [docs/gate3-daily-progress.md](docs/gate3-daily-progress.md)
+- **最终复盘：** [docs/final-retrospective.md](docs/final-retrospective.md)
+
+在线版本不需要安装，打开浏览器即可体验。AI 服务临时不可用时，概念实验、公式计算、题目训练、错题本和本地讲解仍可继续使用。
+
 ## 项目截图
 
 ### 1. 概念实验：看见上浮、悬浮、下沉
@@ -208,8 +218,9 @@ curl http://localhost:8000/health
 
 ```bash
 cd frontend
-npm install
-npm run dev
+corepack enable
+pnpm install
+pnpm dev
 ```
 
 打开：
@@ -282,6 +293,9 @@ float-or-not-lab/
 │  ├─ api-contract.md
 │  ├─ deployment-guide.md
 │  ├─ demo-script.md
+│  ├─ final-submission.md       # Day7 最终提交入口
+│  ├─ final-retrospective.md    # AI 协作与流程复盘
+│  ├─ gate3-daily-progress.md   # Day1-Day7 每日五问
 │  └─ project-summary.md
 ├─ docker-compose.yml
 ├─ PRODUCT.md
@@ -303,7 +317,7 @@ $env:PYTHONPATH=(Get-Location).Path
 
 ```bash
 cd frontend
-npm run build
+pnpm build
 ```
 
 Docker 配置检查：
@@ -319,11 +333,14 @@ docker compose config
 - [演示脚本](docs/demo-script.md)
 - [项目总结](docs/project-summary.md)
 - [AI 协作过程记录](docs/ai-collaboration-notes.md)
+- [Day1-Day7 每日小结](docs/gate3-daily-progress.md)
+- [最终复盘](docs/final-retrospective.md)
+- [最终提交清单](docs/final-submission.md)
 
 ## 后续可扩展方向
 
-- 增加错题记录和正确率统计
-- 让 AI 根据错因生成相似变式题
-- 接入 Supabase / PostgreSQL 保存题库和答题记录
-- 增加教师视角，查看学生常错题型
-- 扩展更多初中物理实验，如压强、杠杆、摩擦力
+- 接入 Supabase / PostgreSQL，实现账号登录和跨设备学习记录。
+- 用真实学生测试学习效果，根据数据调整题目难度和解释方式。
+- 增加教师视角，查看班级常错题型与订正情况。
+- 扩充经过教师审核的浮力题库，并增加题目版本管理。
+- 增加端到端自动化测试和持续部署流程。

@@ -372,32 +372,54 @@ h1 {
 }
 
 .explain-panel {
-  grid-column: 2;
-  padding: 24px;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(330px, 0.8fr);
+  align-items: center;
+  gap: 32px;
+  padding: 28px 30px;
+}
+
+.explain-summary,
+.explain-detail {
+  min-width: 0;
+}
+
+.explain-summary .eyebrow {
+  margin-bottom: 8px;
 }
 
 .explain-panel h2 {
-  max-width: 740px;
-  margin-bottom: 12px;
+  max-width: 760px;
+  margin: 0 0 12px;
   font-size: clamp(1.4rem, 3vw, 2rem);
   line-height: 1.32;
 }
 
-.explain-panel p:not(.eyebrow) {
-  max-width: 680px;
+.explain-tip {
+  max-width: 72ch;
+  margin: 0;
   color: oklch(0.42 0.035 240);
   font-size: 1.05rem;
   line-height: 1.75;
 }
 
+.explain-detail {
+  display: grid;
+  gap: 12px;
+  border-left: 1px solid oklch(0.86 0.028 225);
+  padding-left: 28px;
+}
+
 .formula-strip {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  margin-top: 10px;
-  border-radius: 999px;
-  padding: 12px 18px;
+  width: 100%;
+  margin: 0;
+  border-radius: 16px;
+  padding: 13px 16px;
   background: oklch(0.92 0.04 205);
   color: oklch(0.3 0.07 225);
   font-weight: 850;
@@ -410,13 +432,26 @@ h1 {
 }
 
 .concept-note {
-  border-left: 4px solid oklch(0.58 0.14 230);
+  display: grid;
+  gap: 5px;
+  border: 1px solid oklch(0.82 0.05 220);
   border-radius: 14px;
-  margin: 0 0 14px;
-  padding: 12px 14px;
+  margin: 0;
+  padding: 13px 15px;
   background: oklch(0.95 0.025 215);
-  color: oklch(0.34 0.055 235) !important;
-  font-weight: 780;
+  color: oklch(0.34 0.055 235);
+}
+
+.concept-note strong {
+  color: oklch(0.28 0.08 230);
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.concept-note span {
+  font-size: 0.96rem;
+  font-weight: 760;
+  line-height: 1.6;
 }
 
 @keyframes wave {
@@ -456,6 +491,15 @@ h1 {
 
   .explain-panel {
     grid-column: auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .explain-detail {
+    border-top: 1px solid oklch(0.86 0.028 225);
+    border-left: 0;
+    padding-top: 18px;
+    padding-left: 0;
   }
 
   .tank-stage {
@@ -474,6 +518,10 @@ h1 {
   .control-panel,
   .explain-panel {
     border-radius: 22px;
+  }
+
+  .explain-panel {
+    padding: 18px;
   }
 
   .tank-stage {
@@ -846,8 +894,8 @@ h1 {
 
 .practice-workspace {
   display: grid;
-  grid-template-columns: minmax(250px, 340px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(210px, 228px) minmax(0, 1fr);
+  gap: 24px;
   align-items: start;
 }
 
@@ -1199,7 +1247,7 @@ textarea {
 }
 
 .practice-workspace {
-  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(210px, 228px) minmax(0, 1fr);
   align-items: start;
 }
 
@@ -1266,19 +1314,31 @@ textarea {
 
 .practice-study-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
   align-items: start;
 }
 
 .ai-tutor-panel {
-  position: sticky;
-  top: 16px;
+  position: static;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
   border: 1px solid oklch(0.82 0.045 220);
   border-radius: 26px;
   padding: 18px;
   background: oklch(0.96 0.026 210);
   box-shadow: 0 18px 42px oklch(0.56 0.08 230 / 0.1);
+  scroll-margin-top: 18px;
+}
+
+.ai-tutor-panel.has-answer {
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
+  align-items: start;
+}
+
+.ai-tutor-controls {
+  min-width: 0;
 }
 
 .ai-tutor-heading h3 {
@@ -1354,7 +1414,7 @@ textarea {
   display: grid;
   gap: 12px;
   border-radius: 20px;
-  margin-top: 14px;
+  margin-top: 0;
   padding: 15px;
   background: oklch(0.99 0.006 220);
 }
@@ -1452,13 +1512,38 @@ textarea {
   }
 
   .topic-filter {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .question-group.compact ul {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 620px) {
   .topic-filter {
-    grid-template-columns: 1fr;
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  .topic-filter-button {
+    flex: 0 0 auto;
+    min-width: 138px;
+    scroll-snap-align: start;
+  }
+
+  .question-group.compact ul {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+  }
+
+  .question-group.compact li {
+    flex: 0 0 min(78vw, 280px);
+    scroll-snap-align: start;
   }
 }
 
@@ -1499,7 +1584,6 @@ body {
 .control-panel,
 .formula-panel,
 .formula-result,
-.question-list,
 .practice-card,
 .practice-result,
 .ai-tutor-panel {
@@ -1661,8 +1745,15 @@ body {
 }
 
 .ai-answer-card {
+  min-width: 0;
+  align-self: stretch;
   border: 1px solid oklch(0.88 0.02 245);
+  margin-top: 0;
   box-shadow: 0 14px 32px oklch(0.44 0.08 250 / 0.08);
+}
+
+.ai-answer-card .math-markdown {
+  max-width: 72ch;
 }
 
 .question-button {
@@ -1698,6 +1789,12 @@ body {
     flex-wrap: nowrap;
     overflow-x: auto;
     padding-bottom: 4px;
+  }
+}
+
+@media (max-width: 860px) {
+  .ai-tutor-panel.has-answer {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

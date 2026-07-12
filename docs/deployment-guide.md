@@ -2,6 +2,11 @@
 
 本文档用于把「浮不浮实验室」从本地 demo 收口成可以部署演示的版本。
 
+已部署实例：
+
+- 在线 Demo：[https://float.heyqi.xyz/](https://float.heyqi.xyz/)
+- 健康检查：[https://float.heyqi.xyz/health](https://float.heyqi.xyz/health)
+
 ## 1. 部署方式选择
 
 当前推荐使用 Docker Compose：
